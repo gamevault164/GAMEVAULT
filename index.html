@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Controle de Versão para o Auto-Updater -->
+    <meta name="app-version" content="2.2">
+    
     <title>GameVault - Gerenciador de Coleção</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,7 +14,7 @@
     <!-- Excel JS para exportação avançada -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     
-    <!-- Firebase Clássico (Compat SDK) - Mais estável para HTML puro -->
+    <!-- Firebase Clássico (Compat SDK) -->
     <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-database-compat.js"></script>
 
@@ -22,7 +25,6 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Ajuste de foco para navegação pelo teclado */
         .game-card:focus {
             outline: none;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59,130,246,0.3);
@@ -53,7 +55,7 @@
                 <input type="text" id="search-desktop" placeholder="Pesquisar jogos na sua coleção..." class="w-full pl-10 pr-4 py-2 bg-slate-800/80 border border-slate-700 rounded-full text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 focus:bg-slate-800 transition-all" />
             </div>
 
-            <!-- Actions (Apenas Adicionar Jogo) -->
+            <!-- Actions -->
             <div class="flex items-center gap-2 sm:gap-3">
                 <button onclick="openNewGameModal()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 md:px-6 py-2.5 rounded-full text-sm font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] active:scale-95 whitespace-nowrap">
                     <i data-lucide="plus" class="w-4 h-4"></i> Adicionar Jogo
@@ -87,6 +89,11 @@
                             Todos os Jogos
                             <span id="count-all" class="ml-auto bg-slate-900 text-slate-400 py-0.5 px-2 rounded-full text-xs">0</span>
                         </button>
+                        <button onclick="setPlatformFilter('playing')" id="filter-btn-playing" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent focus:outline-none focus:ring-2 focus:ring-slate-500/50">
+                            <i data-lucide="gamepad" class="w-[18px] h-[18px] text-slate-500"></i>
+                            Jogando Agora
+                            <span id="count-playing" class="ml-auto bg-slate-900 text-slate-400 py-0.5 px-2 rounded-full text-xs">0</span>
+                        </button>
                     </nav>
                 </div>
                 
@@ -101,11 +108,27 @@
 
         <!-- GAME GRID SECTION -->
         <section class="flex-1 w-full overflow-hidden">
-            <div class="flex justify-between items-center mb-4 px-1">
-                <h2 class="text-white font-bold text-lg flex items-center gap-2">
-                    <span id="page-title">A Sua Coleção</span>
+            
+            <!-- HEADER DA PÁGINA / FILTRO ATUAL -->
+            <div class="flex justify-between items-center mb-8 px-1 border-b border-slate-800/60 pb-4">
+                <h2 class="text-white font-bold text-xl md:text-2xl flex items-center gap-2 tracking-tight">
+                    <span id="page-title">Sua Coleção</span>
                 </h2>
-                <span class="text-xs font-medium bg-slate-900 text-blue-400 px-2.5 py-1 rounded-full border border-blue-500/20"><span id="display-count">0</span> jogos</span>
+                <span class="text-sm font-medium bg-slate-900 text-blue-400 px-3 py-1.5 rounded-full border border-blue-500/20 shadow-inner"><span id="display-count">0</span> jogos</span>
+            </div>
+
+            <!-- JOGANDO AGORA SECTION (DESTAQUE) -->
+            <div id="playing-now-section" class="mb-10 hidden animate-fade-in">
+                <h3 class="text-slate-300 font-bold text-sm mb-4 px-1 flex items-center gap-2 uppercase tracking-widest">
+                    <span class="relative flex h-2.5 w-2.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                    </span>
+                    Em Destaque: Jogando
+                </h3>
+                <div id="playing-now-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6 w-full">
+                    <!-- Cards Destaque gerados via JS -->
+                </div>
             </div>
 
             <!-- Empty State -->
@@ -120,9 +143,13 @@
                 </button>
             </div>
 
-            <!-- Games Grid -->
-            <div id="games-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6 w-full pb-8">
-                <!-- Jogos renderizados via JS -->
+            <!-- REGULAR COLLECTION SECTION -->
+            <div id="regular-section" class="animate-fade-in">
+                <h3 id="regular-title" class="text-slate-500 font-bold text-sm mb-4 px-1 uppercase tracking-widest">Demais Jogos</h3>
+                <!-- Games Grid -->
+                <div id="games-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6 w-full pb-8">
+                    <!-- Jogos Regulares renderizados via JS -->
+                </div>
             </div>
         </section>
     </main>
@@ -136,6 +163,21 @@
             </div>
         </div>
     </footer>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[70] flex flex-col gap-3 pointer-events-none"></div>
+
+    <!-- CUSTOM CONFIRM MODAL -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm items-center justify-center z-[80] hidden">
+        <div class="bg-slate-900 p-6 rounded-3xl border border-slate-700 shadow-2xl max-w-sm w-full animate-fade-in mx-4">
+            <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-2" id="confirm-title"><i data-lucide="alert-triangle" class="text-amber-500"></i> Confirmação</h3>
+            <p class="text-slate-400 text-sm mb-6" id="confirm-message">Tem certeza que deseja realizar esta ação?</p>
+            <div class="flex justify-end gap-3">
+                <button id="confirm-btn-cancel" class="px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-800 font-medium transition-colors">Cancelar</button>
+                <button id="confirm-btn-ok" class="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-medium transition-colors shadow-lg shadow-red-500/20">Confirmar</button>
+            </div>
+        </div>
+    </div>
 
     <!-- MODAL ADICIONAR / EDITAR -->
     <div id="game-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md items-center justify-center z-50 p-4 sm:p-6 hidden">
@@ -158,7 +200,7 @@
             <div class="flex-1 overflow-y-auto p-6 md:p-8 flex flex-col lg:flex-row gap-8 bg-slate-950/50">
                 
                 <!-- Coluna Esquerda: Capa e Status -->
-                <div class="w-full lg:w-1/3 flex flex-col gap-6 shrink-0">
+                <div class="w-full lg:w-1/3 flex flex-col gap-5 shrink-0">
                     
                     <!-- Image Picker com Múltiplas Capas -->
                     <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
@@ -176,6 +218,17 @@
                         </div>
 
                         <input type="url" id="form-cover-url" placeholder="https://exemplo.com/capa.jpg" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all" />
+                    </div>
+
+                    <!-- Jogando Agora Toggle -->
+                    <div id="playing-card" class="bg-slate-900 border-slate-800 border rounded-2xl p-5 transition-all duration-300 shadow-sm">
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <div class="relative flex items-center justify-center shrink-0">
+                                <input type="checkbox" id="form-is-playing" class="peer sr-only" />
+                                <div class="w-12 h-7 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-500 transition-colors shadow-inner"></div>
+                            </div>
+                            <span id="playing-label" class="font-bold text-sm transition-colors text-slate-300">Jogando Agora</span>
+                        </label>
                     </div>
 
                     <!-- Emprestado Toggle -->
@@ -232,26 +285,17 @@
 
                         <div class="col-span-1 md:col-span-2 space-y-2">
                             <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Plataformas Disponíveis</label>
-                            <!-- Container para as Tags de Plataformas (Múltipla Seleção) -->
-                            <div id="form-platforms-container" class="flex flex-wrap gap-2">
-                                <!-- Botões gerados via JS -->
-                            </div>
+                            <div id="form-platforms-container" class="flex flex-wrap gap-2"></div>
                         </div>
 
                         <div class="col-span-1 md:col-span-2 space-y-2">
                             <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Formato de Mídia</label>
-                            <!-- Container para as Tags de Midia (Física/Digital) -->
-                            <div id="form-medias-container" class="flex flex-wrap gap-2">
-                                <!-- Botões gerados via JS -->
-                            </div>
+                            <div id="form-medias-container" class="flex flex-wrap gap-2"></div>
                         </div>
 
                         <div class="col-span-1 md:col-span-2 space-y-2">
                             <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Idiomas (Áudio / Legendas)</label>
-                            <!-- Container para as Tags de Idiomas (Múltipla Seleção) -->
-                            <div id="form-languages-container" class="flex flex-wrap gap-2">
-                                <!-- Botões gerados via JS -->
-                            </div>
+                            <div id="form-languages-container" class="flex flex-wrap gap-2"></div>
                         </div>
 
                         <div class="col-span-1 md:col-span-2 flex flex-col h-full mt-2">
@@ -295,6 +339,8 @@
 
     <!-- LOGIC SCRIPT -->
     <script>
+        const APP_VERSION = "2.2"; // Atualizado para forçar atualização no Desktop do utilizador
+
         // Importa o sistema de arquivos direto no HTML (graças ao nodeIntegration)
         let fs = null;
         try {
@@ -303,6 +349,95 @@
             }
         } catch (e) {
             console.warn("Ambiente Native/Node.js não detectado. As funções 'fs' não funcionarão na web comum.");
+        }
+
+        // --- SISTEMA DE TOAST E CONFIRM CUSTOMIZADO ---
+        window.showToast = function(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = type === 'error' ? 'bg-red-900 border-red-500 text-red-100' : 
+                           type === 'success' ? 'bg-emerald-900 border-emerald-500 text-emerald-100' :
+                           'bg-slate-800 border-blue-500 text-blue-100';
+            const icon = type === 'error' ? 'alert-triangle' : type === 'success' ? 'check-circle' : 'info';
+            
+            toast.className = `px-4 py-3 rounded-xl border shadow-lg ${colors} animate-fade-in pointer-events-auto max-w-sm flex items-center gap-3`;
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 shrink-0"></i><span class="text-sm font-medium leading-tight">${message}</span>`;
+            container.appendChild(toast);
+            lucide.createIcons({ root: toast });
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(10px)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        };
+
+        window.customAlert = function(message, type = 'info') {
+            window.showToast(message, type);
+        };
+
+        window.customConfirm = function(title, message, onConfirm) {
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-title').innerHTML = `<i data-lucide="alert-triangle" class="text-amber-500 w-6 h-6"></i> ${title}`;
+            document.getElementById('confirm-message').textContent = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            lucide.createIcons({ root: modal });
+            
+            const btnOk = document.getElementById('confirm-btn-ok');
+            const btnCancel = document.getElementById('confirm-btn-cancel');
+            
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                btnOk.removeEventListener('click', okHandler);
+                btnCancel.removeEventListener('click', cancelHandler);
+            };
+            
+            const okHandler = () => { cleanup(); onConfirm(); };
+            const cancelHandler = () => { cleanup(); };
+            
+            btnOk.addEventListener('click', okHandler);
+            btnCancel.addEventListener('click', cancelHandler);
+        };
+
+        // --- SISTEMA DE AUTO UPDATE ---
+        async function syncWithWebsite() {
+            try {
+                // Busca o HTML do site via fetch. Adicionamos timestamp para evitar cache.
+                const url = 'https://gamevault164.github.io/GAMEVAULT/index.html?t=' + Date.now();
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) return;
+                
+                const remoteText = await response.text();
+
+                // Procura a tag <meta name="app-version" content="...">
+                const versionMatch = remoteText.match(/<meta\s+name=["']app-version["']\s+content=["']([^"']+)["']/i);
+                if (versionMatch && versionMatch[1]) {
+                    const remoteVersion = versionMatch[1];
+                    if (parseFloat(remoteVersion) > parseFloat(APP_VERSION)) {
+                        // Nova versão encontrada
+                        if (fs && window.location.pathname) {
+                            let localPath = window.location.pathname;
+                            if (localPath.startsWith('/') && localPath.includes(':')) {
+                                localPath = localPath.substring(1);
+                            }
+                            localPath = decodeURI(localPath);
+                            
+                            // Sobrescreve o arquivo local com a nova versão
+                            fs.writeFileSync(localPath, remoteText, 'utf-8');
+                            showToast("Nova versão sincronizada do site! Reiniciando...", "success");
+                            setTimeout(() => window.location.reload(), 2500);
+                        } else {
+                            // Ambiente web
+                            showToast("Uma nova versão está disponível! Acesse seu site para ver as novidades.", "success");
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn("Auto-Update em segundo plano: falha silenciosa.", error);
+            }
         }
 
         // --- FUNÇÕES GLOBAIS PARA SEREM CHAMADAS PELO SEU MENU NATIVO ---
@@ -325,7 +460,9 @@
         let gamesRef = null;
         try {
             firebase.initializeApp(firebaseConfig);
-            gamesRef = firebase.database().ref('games');
+            // ATENÇÃO: Para sincronizar perfeitamente com a App Mobile, o Desktop aponta diretamente
+            // para a conta do usuário principal 'marcelo_master' (onde a App Mobile guarda os dados).
+            gamesRef = firebase.database().ref('users/marcelo_master/games');
         } catch(e) {
             console.error("Falha ao iniciar o Firebase:", e);
         }
@@ -380,12 +517,20 @@
             searchMobile: document.getElementById('search-mobile'),
             sidebarMenu: document.getElementById('sidebar-menu'),
             platformsContainer: document.getElementById('platforms-container'),
+            
+            playingNowSection: document.getElementById('playing-now-section'),
+            playingNowGrid: document.getElementById('playing-now-grid'),
+            regularSection: document.getElementById('regular-section'),
+            regularTitle: document.getElementById('regular-title'),
             gamesGrid: document.getElementById('games-grid'),
+            
             emptyState: document.getElementById('empty-state'),
             pageTitle: document.getElementById('page-title'),
             displayCount: document.getElementById('display-count'),
             countAll: document.getElementById('count-all'),
+            countPlaying: document.getElementById('count-playing'),
             filterBtnAll: document.getElementById('filter-btn-all'),
+            filterBtnPlaying: document.getElementById('filter-btn-playing'),
             firebaseStatus: document.getElementById('firebase-status'),
             
             modal: document.getElementById('game-modal'),
@@ -399,12 +544,17 @@
             fMediasContainer: document.getElementById('form-medias-container'),
             fCoverUrl: document.getElementById('form-cover-url'),
             fSynopsis: document.getElementById('form-synopsis'),
+            
+            fIsPlaying: document.getElementById('form-is-playing'), // Variável JS ajustada para isPlaying
+            playingCard: document.getElementById('playing-card'),
+            playingLabel: document.getElementById('playing-label'),
+
             fIsBorrowed: document.getElementById('form-is-borrowed'),
             fBorrowedTo: document.getElementById('form-borrowed-to'),
-            
             borrowedCard: document.getElementById('borrowed-card'),
             borrowedLabel: document.getElementById('borrowed-label'),
             borrowedToContainer: document.getElementById('borrowed-to-container'),
+            
             coverPreviewContainer: document.getElementById('cover-preview-container'),
             btnDelete: document.getElementById('btn-delete'),
             btnDeletePlaceholder: document.getElementById('btn-delete-placeholder'),
@@ -444,18 +594,19 @@
             
             if (gamesRef) {
                 gamesRef.on('value', (snapshot) => {
-                    const data = snapshot.val();
+                    let data = snapshot.val();
                     
-                    if (data !== null) { 
-                        let safeGamesArray = Array.isArray(data) ? data : Object.values(data);
-                        games = safeGamesArray.filter(g => g !== null && typeof g === 'object');
-                        localStorage.setItem('gameCollection', JSON.stringify(games));
+                    // Se estiver nulo na conta do Marcelo, tenta buscar da base antiga "games"
+                    if (data === null) {
+                        firebase.database().ref('games').once('value').then(oldSnap => {
+                            if (oldSnap.exists()) {
+                                processFirebaseData(oldSnap.val());
+                            }
+                        });
+                        return;
                     }
-                    
-                    dom.firebaseStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] inline-block"></span> Nuvem Sincronizada`;
-                    updateSidebar();
-                    renderGames();
-                    lucide.createIcons();
+
+                    processFirebaseData(data);
                 }, (error) => {
                     console.warn("Nuvem bloqueada (verifique as Rules do Firebase)", error);
                     dom.firebaseStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] inline-block"></span> Nuvem Bloqueada`;
@@ -463,6 +614,22 @@
             } else {
                 dom.firebaseStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.8)] inline-block"></span> Armazenamento Local`;
             }
+
+            // Inicia Sincronização em Background
+            setTimeout(syncWithWebsite, 3000);
+        }
+
+        function processFirebaseData(data) {
+            if (data !== null) { 
+                let safeGamesArray = Array.isArray(data) ? data : Object.values(data);
+                games = safeGamesArray.filter(g => g !== null && typeof g === 'object');
+                localStorage.setItem('gameCollection', JSON.stringify(games));
+            }
+            
+            dom.firebaseStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] inline-block"></span> Nuvem Sincronizada`;
+            updateSidebar();
+            renderGames();
+            lucide.createIcons();
         }
 
         function saveToCloud(updatedGamesList) {
@@ -489,6 +656,10 @@
 
             dom.fIsBorrowed.addEventListener('change', (e) => {
                 toggleBorrowedUI(e.target.checked);
+            });
+
+            dom.fIsPlaying.addEventListener('change', (e) => {
+                togglePlayingUI(e.target.checked);
             });
 
             dom.fCoverUrl.addEventListener('input', (e) => {
@@ -527,7 +698,8 @@
                     return;
                 }
 
-                const cards = Array.from(document.querySelectorAll('.game-card'));
+                // Navegação nos cards
+                const cards = Array.from(document.querySelectorAll('.game-card:visible'));
                 if (cards.length === 0) return;
 
                 let activeIdx = cards.indexOf(document.activeElement);
@@ -588,6 +760,7 @@
             dom.sidebarMenu.classList.add('hidden');
             
             if(platformId === 'all') dom.pageTitle.textContent = 'Sua Coleção';
+            else if(platformId === 'playing') dom.pageTitle.textContent = 'Jogando Agora';
             else dom.pageTitle.textContent = PLATFORMS.find(p => p.id === platformId).name;
             
             updateSidebar();
@@ -606,6 +779,18 @@
                 dom.borrowedLabel.classList.replace('text-red-400', 'text-slate-300');
                 dom.borrowedToContainer.classList.add('hidden');
                 dom.fBorrowedTo.value = '';
+            }
+        }
+
+        function togglePlayingUI(isPlaying) {
+            if (isPlaying) {
+                dom.playingCard.classList.replace('bg-slate-900', 'bg-green-900/20');
+                dom.playingCard.classList.add('border-green-800/50', 'shadow-[0_0_15px_rgba(34,197,94,0.1)]');
+                dom.playingLabel.classList.replace('text-slate-300', 'text-green-400');
+            } else {
+                dom.playingCard.classList.replace('bg-green-900/20', 'bg-slate-900');
+                dom.playingCard.classList.remove('border-green-800/50', 'shadow-[0_0_15px_rgba(34,197,94,0.1)]');
+                dom.playingLabel.classList.replace('text-green-400', 'text-slate-300');
             }
         }
         
@@ -791,21 +976,23 @@
 
         function updateSidebar() {
             dom.countAll.textContent = games.length;
-            const iconAll = dom.filterBtnAll.querySelector('svg, i');
-            
-            if (filterPlatform === 'all') {
-                dom.filterBtnAll.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium bg-slate-800 text-blue-400 shadow-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50';
-                if (iconAll) {
-                    iconAll.classList.remove('text-slate-500');
-                    iconAll.classList.add('text-blue-400');
+            const playingCount = games.filter(g => g.isPlaying).length;
+            dom.countPlaying.textContent = playingCount;
+
+            // Reset Todos e Jogando buttons
+            const resetBtn = (btn, iconClassList, isActive) => {
+                const icon = btn.querySelector('svg, i');
+                if (isActive) {
+                    btn.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium bg-slate-800 text-blue-400 shadow-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50';
+                    if (icon) { icon.classList.remove('text-slate-500'); icon.classList.add('text-blue-400'); }
+                } else {
+                    btn.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent focus:outline-none focus:ring-2 focus:ring-slate-500/50';
+                    if (icon) { icon.classList.remove('text-blue-400'); icon.classList.add('text-slate-500'); }
                 }
-            } else {
-                dom.filterBtnAll.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent focus:outline-none focus:ring-2 focus:ring-slate-500/50';
-                if (iconAll) {
-                    iconAll.classList.remove('text-blue-400');
-                    iconAll.classList.add('text-slate-500');
-                }
-            }
+            };
+
+            resetBtn(dom.filterBtnAll, '', filterPlatform === 'all');
+            resetBtn(dom.filterBtnPlaying, '', filterPlatform === 'playing');
 
             let html = '';
             PLATFORMS.forEach(p => {
@@ -833,163 +1020,194 @@
             lucide.createIcons({ nameAttr: 'data-lucide', root: dom.platformsContainer });
         }
 
+        // FUNÇÃO AUXILIAR PARA GERAR O HTML DE UM CARD PARA NÃO REPETIR CÓDIGO
+        window.generateGameCardHtml = function(game) {
+            const gamePlats = game.platforms || (game.platform ? [game.platform] : []);
+            const gameMedias = game.medias || [];
+            
+            let borderStyle = 'outline-transparent border-slate-800 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]';
+            if (game.isBorrowed) {
+                borderStyle = 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] outline outline-2 outline-red-500/50';
+            } else if (game.isPlaying) {
+                borderStyle = 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)] outline outline-2 outline-green-500/40';
+            }
+                
+            let validCovers = [];
+            let specificPlatformCover = null;
+
+            if (gamePlats.length > 0) {
+                PLATFORMS.forEach(p => {
+                    if (gamePlats.includes(p.id) && game.covers && game.covers[p.id]) {
+                        if (filterPlatform === p.id) {
+                            specificPlatformCover = game.covers[p.id];
+                        } else {
+                            validCovers.push(game.covers[p.id]);
+                        }
+                    }
+                });
+            }
+
+            if (specificPlatformCover) validCovers.unshift(specificPlatformCover);
+            if (validCovers.length === 0 && game.coverUrl) validCovers.push(game.coverUrl);
+            validCovers = [...new Set(validCovers)]; 
+            
+            const safeCoversStr = encodeURIComponent(JSON.stringify(validCovers));
+
+            const arrowsHtml = validCovers.length > 1 ? `
+                <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+                    <button type="button" onclick="event.stopPropagation(); window.cycleCardCover('${game.id}', -1)" class="pointer-events-auto p-1.5 bg-slate-900/90 text-white hover:bg-blue-500 rounded-full backdrop-blur-md transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)] focus:outline-none"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                    <button type="button" onclick="event.stopPropagation(); window.cycleCardCover('${game.id}', 1)" class="pointer-events-auto p-1.5 bg-slate-900/90 text-white hover:bg-blue-500 rounded-full backdrop-blur-md transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)] focus:outline-none"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                </div>
+            ` : '';
+
+            const coverInner = validCovers.length > 0
+                ? `<img id="card-cover-img-${game.id}" src="${validCovers[0]}" data-covers="${safeCoversStr}" data-index="0" alt="${game.title}" class="w-full h-full object-contain object-center backdrop-blur-2xl bg-slate-950 p-1 transform group-hover:scale-[1.03] transition-transform duration-700 ease-out" loading="lazy" />`
+                : `<div class="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-800/50"><i data-lucide="image" class="w-10 h-10 opacity-40 mb-2"></i><span class="text-xs font-medium uppercase tracking-wider">Sem Capa</span></div>`;
+
+            const playingBadge = game.isPlaying 
+                ? `
+                <div class="absolute top-3 left-3 z-30">
+                    <div class="flex items-center gap-2 bg-green-600 border border-green-500/50 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold text-white shadow-lg">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                        </span>
+                        <span class="uppercase tracking-widest">Jogando</span>
+                    </div>
+                </div>` : '';
+
+            const borrowedBadge = game.isBorrowed 
+                ? `
+                <div class="absolute top-3 right-3 z-30">
+                    <div class="flex items-center gap-2 bg-red-600 border border-red-500/50 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold text-white shadow-lg">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                        </span>
+                        <span class="uppercase tracking-widest max-w-[90px] truncate">${game.borrowedTo}</span>
+                    </div>
+                </div>` : '';
+
+            let badgesHtml = '';
+            let simpleIconsHtml = '';
+            gamePlats.forEach(pId => {
+                const pObj = PLATFORMS.find(p => p.id === pId);
+                if (pObj) {
+                    badgesHtml += `
+                        <div class="bg-slate-950/90 backdrop-blur-md text-slate-200 text-[10px] font-bold px-2 py-1.5 rounded-lg border border-slate-700 uppercase flex items-center gap-1 shadow-sm">
+                            <i data-lucide="${pObj.icon}" class="w-3 h-3 text-blue-400"></i>
+                            <span class="hidden sm:inline">${pObj.name}</span>
+                            <span class="sm:hidden">${pObj.id}</span>
+                        </div>`;
+                    simpleIconsHtml += `<i data-lucide="${pObj.icon}" class="w-4 h-4" title="${pObj.name}"></i>`;
+                }
+            });
+
+            let mediasHtml = '';
+            if (gameMedias.length > 0) {
+                mediasHtml = `<div class="absolute bottom-3 right-3 flex flex-col gap-1.5 z-20">`;
+                gameMedias.forEach(mId => {
+                    const mObj = MEDIAS.find(m => m.id === mId);
+                    if (mObj) {
+                        let specificIcon = `<i data-lucide="${mObj.icon}" class="w-4 h-4 text-emerald-400"></i>`;
+                        if (mId === 'digital') specificIcon = `<svg class="w-4 h-4 text-emerald-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12" y2="18.01"></line></svg>`;
+                        mediasHtml += `<div class="bg-slate-900/90 backdrop-blur-md text-white p-1.5 rounded-full border border-slate-700 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex items-center justify-center transform group-hover:scale-110 transition-transform" title="${mObj.name}">${specificIcon}</div>`;
+                    }
+                });
+                mediasHtml += `</div>`;
+            }
+
+            let langsText = 'N/A';
+            if (Array.isArray(game.languages) && game.languages.length > 0) {
+                langsText = game.languages.map(lId => {
+                    const langObj = LANGUAGES.find(l => l.id === lId);
+                    return langObj ? langObj.short : lId;
+                }).join(', ');
+            } else if (typeof game.languages === 'string' && game.languages) {
+                langsText = game.languages; 
+            }
+
+            return `
+                <div tabindex="0" onclick="window.openEditModal('${game.id}')" class="game-card group relative bg-slate-900 border rounded-2xl transition-all duration-300 flex flex-col overflow-hidden cursor-pointer hover:-translate-y-1.5 ${borderStyle}">
+                    <div class="relative aspect-[3/4] bg-slate-950 w-full overflow-hidden flex items-center justify-center">
+                        ${coverInner}
+                        ${arrowsHtml}
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                        ${playingBadge}
+                        ${borrowedBadge}
+                        <div class="absolute bottom-3 left-3 right-12 flex flex-wrap gap-1.5 transform translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20 pointer-events-none">
+                            ${badgesHtml}
+                        </div>
+                        ${mediasHtml}
+                    </div>
+                    <div class="p-4 flex flex-col flex-1 bg-slate-900 border-t border-slate-800 relative z-10">
+                        <h3 class="font-bold text-slate-100 leading-tight mb-2 line-clamp-2 uppercase group-hover:text-blue-400 transition-colors" title="${game.title}">${game.title}</h3>
+                        <div class="mt-auto flex items-center justify-between">
+                            <p class="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium truncate pr-2" title="${langsText}">
+                                <i data-lucide="languages" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                                <span class="truncate max-w-[120px]">${langsText}</span>
+                            </p>
+                            <div class="text-slate-600 flex gap-1 group-hover:opacity-0 transition-opacity shrink-0">
+                                ${simpleIconsHtml}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         function renderGames() {
             const filteredGames = games.filter(g => {
                 const gamePlats = g.platforms || (g.platform ? [g.platform] : []);
-                const matchPlatform = filterPlatform === 'all' || gamePlats.includes(filterPlatform);
+                let matchPlatform = false;
+                
+                if (filterPlatform === 'all') matchPlatform = true;
+                else if (filterPlatform === 'playing') matchPlatform = g.isPlaying;
+                else matchPlatform = gamePlats.includes(filterPlatform);
+
                 const matchSearch = g.title.toLowerCase().includes(searchQuery);
                 return matchPlatform && matchSearch;
-            }).sort((a, b) => {
-                return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' });
-            });
+            }).sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }));
 
             dom.displayCount.textContent = filteredGames.length;
 
             if (filteredGames.length === 0) {
+                dom.playingNowSection.classList.add('hidden');
+                dom.regularTitle.classList.add('hidden');
+                dom.gamesGrid.classList.add('hidden');
                 dom.gamesGrid.innerHTML = '';
+                
                 dom.emptyState.classList.remove('hidden');
                 dom.emptyState.classList.add('flex');
             } else {
                 dom.emptyState.classList.add('hidden');
                 dom.emptyState.classList.remove('flex');
                 
-                let html = '';
-                filteredGames.forEach(game => {
-                    const gamePlats = game.platforms || (game.platform ? [game.platform] : []);
-                    const gameMedias = game.medias || [];
-                    
-                    const borderStyle = game.isBorrowed 
-                        ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] outline outline-2 outline-red-500/50' 
-                        : 'outline-transparent border-slate-800 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]';
-                        
-                    let validCovers = [];
-                    let specificPlatformCover = null;
+                // Divisão entre os que estão sendo jogados e a coleção normal
+                const playing = filteredGames.filter(g => g.isPlaying);
+                const regular = filteredGames.filter(g => !g.isPlaying);
 
-                    if (gamePlats.length > 0) {
-                        PLATFORMS.forEach(p => {
-                            if (gamePlats.includes(p.id) && game.covers && game.covers[p.id]) {
-                                if (filterPlatform === p.id) {
-                                    specificPlatformCover = game.covers[p.id];
-                                } else {
-                                    validCovers.push(game.covers[p.id]);
-                                }
-                            }
-                        });
-                    }
+                // Destaque "Jogando Agora"
+                if (playing.length > 0) {
+                    dom.playingNowGrid.innerHTML = playing.map(window.generateGameCardHtml).join('');
+                    dom.playingNowSection.classList.remove('hidden');
+                } else {
+                    dom.playingNowGrid.innerHTML = '';
+                    dom.playingNowSection.classList.add('hidden');
+                }
 
-                    if (specificPlatformCover) {
-                        validCovers.unshift(specificPlatformCover);
-                    }
+                // Grid Normal
+                if (regular.length > 0) {
+                    dom.gamesGrid.innerHTML = regular.map(window.generateGameCardHtml).join('');
+                    dom.gamesGrid.classList.remove('hidden');
+                    dom.regularTitle.classList.remove('hidden');
+                } else {
+                    dom.gamesGrid.innerHTML = '';
+                    dom.gamesGrid.classList.add('hidden');
+                    dom.regularTitle.classList.add('hidden');
+                }
 
-                    if (validCovers.length === 0 && game.coverUrl) {
-                        validCovers.push(game.coverUrl);
-                    }
-                    validCovers = [...new Set(validCovers)]; 
-                    
-                    const safeCoversStr = encodeURIComponent(JSON.stringify(validCovers));
-
-                    const arrowsHtml = validCovers.length > 1 ? `
-                        <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-                            <button type="button" onclick="event.stopPropagation(); window.cycleCardCover('${game.id}', -1)" class="pointer-events-auto p-1.5 bg-slate-900/90 text-white hover:bg-blue-500 rounded-full backdrop-blur-md transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)] focus:outline-none"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
-                            <button type="button" onclick="event.stopPropagation(); window.cycleCardCover('${game.id}', 1)" class="pointer-events-auto p-1.5 bg-slate-900/90 text-white hover:bg-blue-500 rounded-full backdrop-blur-md transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)] focus:outline-none"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
-                        </div>
-                    ` : '';
-
-                    const coverInner = validCovers.length > 0
-                        ? `<img id="card-cover-img-${game.id}" src="${validCovers[0]}" data-covers="${safeCoversStr}" data-index="0" alt="${game.title}" class="w-full h-full object-contain object-center backdrop-blur-2xl bg-slate-950 p-1 transform group-hover:scale-[1.03] transition-transform duration-700 ease-out" loading="lazy" />`
-                        : `<div class="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-800/50"><i data-lucide="image" class="w-10 h-10 opacity-40 mb-2"></i><span class="text-xs font-medium uppercase tracking-wider">Sem Capa</span></div>`;
-
-                    const borrowedBadge = game.isBorrowed 
-                        ? `
-                        <div class="absolute top-3 right-3 z-30">
-                            <div class="flex items-center gap-2 bg-red-600 border border-red-500/50 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold text-white shadow-lg">
-                                <span class="relative flex h-2 w-2">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                                </span>
-                                <span class="uppercase tracking-widest max-w-[90px] truncate">${game.borrowedTo}</span>
-                            </div>
-                        </div>` 
-                        : '';
-
-                    let badgesHtml = '';
-                    let simpleIconsHtml = '';
-                    gamePlats.forEach(pId => {
-                        const pObj = PLATFORMS.find(p => p.id === pId);
-                        if (pObj) {
-                            badgesHtml += `
-                                <div class="bg-slate-950/90 backdrop-blur-md text-slate-200 text-[10px] font-bold px-2 py-1.5 rounded-lg border border-slate-700 uppercase flex items-center gap-1 shadow-sm">
-                                    <i data-lucide="${pObj.icon}" class="w-3 h-3 text-blue-400"></i>
-                                    <span class="hidden sm:inline">${pObj.name}</span>
-                                    <span class="sm:hidden">${pObj.id}</span>
-                                </div>`;
-                            simpleIconsHtml += `<i data-lucide="${pObj.icon}" class="w-4 h-4" title="${pObj.name}"></i>`;
-                        }
-                    });
-
-                    let mediasHtml = '';
-                    if (gameMedias.length > 0) {
-                        mediasHtml = `<div class="absolute bottom-3 right-3 flex flex-col gap-1.5 z-20">`;
-                        gameMedias.forEach(mId => {
-                            const mObj = MEDIAS.find(m => m.id === mId);
-                            if (mObj) {
-                                let specificIcon = `<i data-lucide="${mObj.icon}" class="w-4 h-4 text-emerald-400"></i>`;
-                                if (mId === 'digital') {
-                                    specificIcon = `
-                                    <svg class="w-4 h-4 text-emerald-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                      <rect x="6" y="2" width="12" height="20" rx="2" ry="2"></rect>
-                                      <line x1="12" y1="18" x2="12" y2="18.01"></line>
-                                    </svg>`;
-                                }
-                                mediasHtml += `
-                                <div class="bg-slate-900/90 backdrop-blur-md text-white p-1.5 rounded-full border border-slate-700 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex items-center justify-center transform group-hover:scale-110 transition-transform" title="${mObj.name}">
-                                    ${specificIcon}
-                                </div>`;
-                            }
-                        });
-                        mediasHtml += `</div>`;
-                    }
-
-                    let langsText = 'N/A';
-                    if (Array.isArray(game.languages) && game.languages.length > 0) {
-                        langsText = game.languages.map(lId => {
-                            const langObj = LANGUAGES.find(l => l.id === lId);
-                            return langObj ? langObj.short : lId;
-                        }).join(', ');
-                    } else if (typeof game.languages === 'string' && game.languages) {
-                        langsText = game.languages; 
-                    }
-
-                    html += `
-                        <div tabindex="0" onclick="window.openEditModal('${game.id}')" class="game-card group relative bg-slate-900 border rounded-2xl transition-all duration-300 flex flex-col overflow-hidden cursor-pointer hover:-translate-y-1.5 ${borderStyle}">
-                            <div class="relative aspect-[3/4] bg-slate-950 w-full overflow-hidden flex items-center justify-center">
-                                ${coverInner}
-                                ${arrowsHtml}
-                                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-                                ${borrowedBadge}
-                                <div class="absolute bottom-3 left-3 right-12 flex flex-wrap gap-1.5 transform translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20 pointer-events-none">
-                                    ${badgesHtml}
-                                </div>
-                                ${mediasHtml}
-                            </div>
-                            <div class="p-4 flex flex-col flex-1 bg-slate-900 border-t border-slate-800 relative z-10">
-                                <h3 class="font-bold text-slate-100 leading-tight mb-2 line-clamp-2 uppercase group-hover:text-blue-400 transition-colors" title="${game.title}">${game.title}</h3>
-                                <div class="mt-auto flex items-center justify-between">
-                                    <p class="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium truncate pr-2" title="${langsText}">
-                                        <i data-lucide="languages" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
-                                        <span class="truncate max-w-[120px]">${langsText}</span>
-                                    </p>
-                                    <div class="text-slate-600 flex gap-1 group-hover:opacity-0 transition-opacity shrink-0">
-                                        ${simpleIconsHtml}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                dom.gamesGrid.innerHTML = html;
-                lucide.createIcons({ nameAttr: 'data-lucide', root: dom.gamesGrid });
+                lucide.createIcons({ nameAttr: 'data-lucide', root: document.querySelector('main') });
             }
         }
 
@@ -1008,6 +1226,7 @@
             dom.fSynopsis.value = '';
             dom.fIsBorrowed.checked = false;
             dom.fBorrowedTo.value = '';
+            dom.fIsPlaying.checked = false;
             
             formData_coverOptions = [];
             formData_currentCoverIndex = 0;
@@ -1017,6 +1236,7 @@
             dom.btnTranslate.disabled = true;
             
             toggleBorrowedUI(false);
+            togglePlayingUI(false);
             renderPlatformToggles();
             renderLanguageToggles();
             renderMediaToggles();
@@ -1073,6 +1293,7 @@
             dom.fSynopsis.value = game.synopsis || '';
             dom.fIsBorrowed.checked = game.isBorrowed || false;
             dom.fBorrowedTo.value = game.borrowedTo || '';
+            dom.fIsPlaying.checked = game.isPlaying || false;
 
             formData_coverOptions = [];
             formData_currentCoverIndex = 0;
@@ -1082,6 +1303,7 @@
             dom.btnTranslate.disabled = !game.synopsis;
 
             toggleBorrowedUI(game.isBorrowed);
+            togglePlayingUI(game.isPlaying);
             renderPlatformToggles();
             renderLanguageToggles();
             renderMediaToggles();
@@ -1108,15 +1330,19 @@
         window.saveGame = function() {
             const title = dom.fTitle.value.trim();
             if (!title) {
-                alert("O título do jogo é obrigatório!");
+                customAlert("O título do jogo é obrigatório!", "error");
                 return;
             }
             if (formData_selectedPlatforms.length === 0) {
-                alert("Selecione pelo menos uma plataforma!");
+                customAlert("Selecione pelo menos uma plataforma!", "error");
                 return;
             }
 
+            // Preserva propriedades que possam existir apenas na App (ex: Lista de Desejos) se estiver editando
+            const oldData = editingGameId ? games.find(g => g.id === editingGameId) : {};
+
             const gameData = {
+                ...oldData, // Mantém dados que o Desktop não edita nativamente
                 title: title.toUpperCase(), 
                 platforms: formData_selectedPlatforms,
                 covers: formData_covers,
@@ -1125,7 +1351,8 @@
                 medias: formData_selectedMedias, 
                 synopsis: dom.fSynopsis.value,
                 isBorrowed: dom.fIsBorrowed.checked,
-                borrowedTo: dom.fIsBorrowed.checked ? dom.fBorrowedTo.value : ''
+                borrowedTo: dom.fIsBorrowed.checked ? dom.fBorrowedTo.value : '',
+                isPlaying: dom.fIsPlaying.checked
             };
 
             if (!Array.isArray(games)) games = Object.values(games || {});
@@ -1151,22 +1378,20 @@
 
         window.deleteGame = function() {
             if(!editingGameId) return;
-            if (confirm("Tem certeza que deseja remover este jogo da biblioteca?")) {
-                
+            customConfirm("Excluir Jogo", "Tem certeza que deseja remover este jogo da biblioteca? Esta ação não pode ser desfeita.", () => {
                 if (!Array.isArray(games)) games = Object.values(games || {});
-                
                 games = games.filter(g => g && g.id !== editingGameId);
                 updateSidebar();
                 renderGames();
                 window.closeModal();
-
                 saveToCloud(games); 
-            }
+                customAlert("Jogo removido com sucesso.", "success");
+            });
         }
 
         // --- MANIPULAÇÃO DE ARQUIVOS ---
         window.exportarBackupTXT = function() {
-            if (games.length === 0) return alert("Sua coleção está vazia!");
+            if (games.length === 0) return customAlert("Sua coleção está vazia!", "error");
             const dadosTexto = JSON.stringify(games, null, 4);
             const blob = new Blob([dadosTexto], { type: 'text/plain;charset=utf-8' });
             
@@ -1176,6 +1401,7 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            customAlert("Backup exportado com sucesso!", "success");
         }
 
         // --- IMPORTAR TXT E RESTAURAR COLEÇÃO ---
@@ -1188,19 +1414,19 @@
                 try {
                     const data = JSON.parse(e.target.result);
                     if (Array.isArray(data)) {
-                        if (confirm(`Encontrados ${data.length} jogos no backup. Deseja importar esta coleção para a sua página principal?`)) {
+                        customConfirm("Restaurar Backup", `Encontrados ${data.length} jogos no backup. Deseja importar esta coleção e sobrescrever a atual?`, () => {
                             games = data;
                             updateSidebar();
                             renderGames();
                             saveToCloud(games);
-                            alert("Coleção restaurada com sucesso!");
-                        }
+                            customAlert("Coleção restaurada com sucesso!", "success");
+                        });
                     } else {
-                        alert("O arquivo não contém uma lista de jogos válida.");
+                        customAlert("O arquivo não contém uma lista de jogos válida.", "error");
                     }
                 } catch (err) {
                     console.error(err);
-                    alert("Erro ao ler o arquivo. Certifique-se de que é o arquivo TXT gerado pelo GameVault.");
+                    customAlert("Erro ao ler o arquivo. Certifique-se de que é o arquivo TXT gerado pelo GameVault.", "error");
                 }
                 event.target.value = ''; // Reset input
             };
@@ -1218,7 +1444,6 @@
                     const data = JSON.parse(e.target.result);
                     if (!Array.isArray(data)) throw new Error("Formato inválido");
                     
-                    // Escapar de forma segura para não corromper o script inline
                     const escapedData = JSON.stringify(data).replace(/</g, '\\u003c');
                     const platStr = JSON.stringify(PLATFORMS).replace(/</g, '\\u003c');
                     const medStr = JSON.stringify(MEDIAS).replace(/</g, '\\u003c');
@@ -1240,7 +1465,6 @@
     </style>
 </head>
 <body class="min-h-screen flex flex-col selection:bg-blue-500/30">
-    <!-- HEADER -->
     <header class="sticky top-0 z-40 w-full backdrop-blur-lg bg-slate-900/80 border-b border-slate-800 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
             <h1 class="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
@@ -1250,12 +1474,24 @@
         </div>
     </header>
 
-    <!-- MAIN -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
+        <!-- Jogando Agora Section -->
+        <div id="playing-now-section" class="mb-10 hidden">
+            <h3 class="text-slate-300 font-bold text-sm mb-4 px-1 flex items-center gap-2 uppercase tracking-widest">
+                <span class="relative flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                </span>
+                Em Destaque: Jogando
+            </h3>
+            <div id="playing-now-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6 w-full"></div>
+        </div>
+
+        <h3 id="regular-title" class="text-slate-500 font-bold text-sm mb-4 px-1 uppercase tracking-widest hidden">Demais Jogos</h3>
         <div id="games-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6 w-full pb-8"></div>
     </main>
 
-    <!-- MODAL DE VISUALIZAÇÃO -->
+    <!-- Modal de Visualização Omitido para não estender - Mantém o mesmo HTML do seu Viewer Original -->
     <div id="view-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md items-center justify-center z-50 p-4 sm:p-6 hidden">
         <div class="bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-full flex flex-col overflow-hidden border border-slate-700 animate-fade-in">
             <div class="shrink-0 z-20 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 px-6 py-4 flex justify-between items-center">
@@ -1265,6 +1501,11 @@
             <div class="flex-1 overflow-y-auto p-6 md:p-8 flex flex-col md:flex-row gap-8 bg-slate-950/50">
                 <div class="w-full md:w-1/3 flex flex-col gap-4 shrink-0">
                     <img id="modal-cover" src="" class="w-full aspect-[3/4] object-contain object-center rounded-xl bg-slate-950 border border-slate-800 drop-shadow-2xl p-2" />
+                    
+                    <div id="modal-playing" class="hidden bg-green-900/20 border border-green-800/50 p-4 rounded-xl shadow-inner mt-2">
+                        <span class="text-sm font-bold text-green-400 uppercase tracking-wider block flex items-center gap-2"><i data-lucide="gamepad-2" class="w-4 h-4"></i> Jogando Agora</span>
+                    </div>
+
                     <div id="modal-borrowed" class="hidden bg-red-900/20 border border-red-800/50 p-4 rounded-xl shadow-inner">
                         <span class="text-xs font-bold text-red-400 uppercase tracking-wider block mb-1 flex items-center gap-2"><i data-lucide="alert-circle" class="w-4 h-4"></i> Emprestado para:</span>
                         <span id="modal-borrowed-to" class="font-bold text-slate-200"></span>
@@ -1292,47 +1533,58 @@
         </div>
     </div>
 
-    <!-- LOGIC SCRIPT EMBUTIDO -->
     <script>
         const games = ${escapedData};
         const PLATFORMS = ${platStr};
         const MEDIAS = ${medStr};
         const LANGUAGES = ${langStr};
 
+        function generateCard(game) {
+            const plats = game.platforms || (game.platform ? [game.platform] : []);
+            let covers = [];
+            if (plats.length > 0) {
+                PLATFORMS.forEach(p => { 
+                    if (plats.includes(p.id) && game.covers && game.covers[p.id]) covers.push(game.covers[p.id]); 
+                });
+            }
+            if (covers.length === 0 && game.coverUrl) covers.push(game.coverUrl);
+            const displayCover = covers.length > 0 ? covers[0] : 'https://via.placeholder.com/300x400/0f172a/475569?text=Sem+Capa';
+            
+            let borderStyle = 'border-slate-800 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]';
+            if(game.isBorrowed) borderStyle = 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] outline outline-2 outline-red-500/50';
+            else if(game.isPlaying) borderStyle = 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)] outline outline-2 outline-green-500/40';
+
+            const borrowedBadge = game.isBorrowed ? \`<div class="absolute top-2 right-2 z-10 flex items-center gap-2 bg-red-600 border border-red-500/50 px-2 py-1 rounded-full text-[9px] font-bold text-white"><span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> EMPRESTADO</div>\` : '';
+            const playingBadge = game.isPlaying ? \`<div class="absolute top-2 left-2 z-10 flex items-center gap-2 bg-green-600 border border-green-500/50 px-2 py-1 rounded-full text-[9px] font-bold text-white"><span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> JOGANDO</div>\` : '';
+            
+            return \`
+                <div onclick="openModal('\${game.id}')" class="game-card bg-slate-900 border rounded-2xl overflow-hidden cursor-pointer hover:-translate-y-1.5 transition-all flex flex-col group relative \${borderStyle}">
+                    <div class="relative aspect-[3/4] bg-slate-950 flex items-center justify-center p-1">
+                        \${borrowedBadge}
+                        \${playingBadge}
+                        <img src="\${displayCover}" class="w-full h-full object-contain group-hover:scale-[1.03] transition-transform duration-700" loading="lazy" />
+                    </div>
+                    <div class="p-4 border-t border-slate-800 flex-1 flex flex-col">
+                        <h3 class="font-bold text-slate-100 uppercase text-xs md:text-sm line-clamp-2 group-hover:text-blue-400 transition-colors" title="\${game.title}">\${game.title}</h3>
+                    </div>
+                </div>\`;
+        }
+
         function init() {
             document.getElementById('total-count').textContent = games.length + ' jogos';
             
-            const grid = document.getElementById('games-grid');
-            let html = '';
+            const playingNow = games.filter(g => g.isPlaying);
+            const regular = games.filter(g => !g.isPlaying);
+
+            if (playingNow.length > 0) {
+                document.getElementById('playing-now-grid').innerHTML = playingNow.sort((a,b) => (a.title||'').localeCompare((b.title||''))).map(generateCard).join('');
+                document.getElementById('playing-now-section').classList.remove('hidden');
+            }
+            if (regular.length > 0) {
+                document.getElementById('games-grid').innerHTML = regular.sort((a,b) => (a.title||'').localeCompare((b.title||''))).map(generateCard).join('');
+                document.getElementById('regular-title').classList.remove('hidden');
+            }
             
-            games.sort((a,b) => (a.title||'').localeCompare((b.title||''))).forEach(game => {
-                const plats = game.platforms || (game.platform ? [game.platform] : []);
-                let covers = [];
-                
-                // Puxar covers
-                if (plats.length > 0) {
-                    PLATFORMS.forEach(p => { 
-                        if (plats.includes(p.id) && game.covers && game.covers[p.id]) covers.push(game.covers[p.id]); 
-                    });
-                }
-                if (covers.length === 0 && game.coverUrl) covers.push(game.coverUrl);
-                const displayCover = covers.length > 0 ? covers[0] : 'https://via.placeholder.com/300x400/0f172a/475569?text=Sem+Capa';
-                
-                const borderStyle = game.isBorrowed ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] outline outline-2 outline-red-500/50' : 'border-slate-800 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]';
-                const borrowedBadge = game.isBorrowed ? \`<div class="absolute top-2 right-2 z-10 flex items-center gap-2 bg-red-600 border border-red-500/50 px-2 py-1 rounded-full text-[9px] font-bold text-white"><span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> EMPRESTADO</div>\` : '';
-                
-                html += \`
-                    <div onclick="openModal('\${game.id}')" class="game-card bg-slate-900 border rounded-2xl overflow-hidden cursor-pointer hover:-translate-y-1.5 transition-all flex flex-col group relative \${borderStyle}">
-                        <div class="relative aspect-[3/4] bg-slate-950 flex items-center justify-center p-1">
-                            \${borrowedBadge}
-                            <img src="\${displayCover}" class="w-full h-full object-contain group-hover:scale-[1.03] transition-transform duration-700" loading="lazy" />
-                        </div>
-                        <div class="p-4 border-t border-slate-800 flex-1 flex flex-col">
-                            <h3 class="font-bold text-slate-100 uppercase text-xs md:text-sm line-clamp-2 group-hover:text-blue-400 transition-colors" title="\${game.title}">\${game.title}</h3>
-                        </div>
-                    </div>\`;
-            });
-            grid.innerHTML = html;
             lucide.createIcons();
         }
 
@@ -1342,7 +1594,6 @@
             
             document.getElementById('modal-title').textContent = game.title;
             
-            // Tratamento das Capas
             const plats = game.platforms || (game.platform ? [game.platform] : []);
             let covers = [];
             if (plats.length > 0) {
@@ -1353,15 +1604,16 @@
             if (covers.length === 0 && game.coverUrl) covers.push(game.coverUrl);
             document.getElementById('modal-cover').src = covers.length > 0 ? covers[0] : 'https://via.placeholder.com/300x400/0f172a/475569?text=Sem+Capa';
             
-            // Tratar Empréstimo
             if(game.isBorrowed) {
                 document.getElementById('modal-borrowed').classList.remove('hidden');
                 document.getElementById('modal-borrowed-to').textContent = game.borrowedTo || 'Amigo (Não Específicado)';
             } else {
                 document.getElementById('modal-borrowed').classList.add('hidden');
             }
+
+            if(game.isPlaying) document.getElementById('modal-playing').classList.remove('hidden');
+            else document.getElementById('modal-playing').classList.add('hidden');
             
-            // Preencher Plataformas
             let platHtml = '';
             plats.forEach(pId => {
                 const pObj = PLATFORMS.find(p => p.id === pId);
@@ -1369,7 +1621,6 @@
             });
             document.getElementById('modal-platforms').innerHTML = platHtml || '<span class="text-slate-500 text-sm font-medium">Nenhuma informada</span>';
 
-            // Preencher Mídias
             let medHtml = '';
             (game.medias||[]).forEach(mId => {
                 const mObj = MEDIAS.find(m => m.id === mId);
@@ -1377,7 +1628,6 @@
             });
             document.getElementById('modal-medias').innerHTML = medHtml || '<span class="text-slate-500 text-sm font-medium">Nenhuma informada</span>';
             
-            // Preencher Idiomas
             let langHtml = '';
             let langs = Array.isArray(game.languages) ? game.languages : [];
             langs.forEach(lId => {
@@ -1387,10 +1637,8 @@
             if(typeof game.languages === 'string' && game.languages) langHtml = \`<span class="text-sm font-bold text-indigo-400">\${game.languages}</span>\`;
             document.getElementById('modal-langs').innerHTML = langHtml || '<span class="text-slate-500 text-sm font-medium">Nenhuma informada</span>';
             
-            // Sinopse
             document.getElementById('modal-synopsis').textContent = game.synopsis || 'Nenhuma sinopse disponível.';
             
-            // Abre o Modal
             const modal = document.getElementById('view-modal');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -1404,7 +1652,6 @@
             modal.classList.remove('flex');
         }
 
-        // Fecha modal apertando ESC
         document.addEventListener('keydown', (e) => {
             if(e.key === 'Escape') closeModal();
         });
@@ -1422,11 +1669,11 @@
                     link.click();
                     document.body.removeChild(link);
                     
-                    alert("Seu Arquivo HTML Interativo foi gerado e o download começou!");
+                    customAlert("Seu Arquivo HTML Interativo foi gerado e o download começou!", "success");
 
                 } catch (err) {
                     console.error(err);
-                    alert("Erro ao criar a página HTML. O arquivo TXT pode estar corrompido.");
+                    customAlert("Erro ao criar a página HTML. O arquivo TXT pode estar corrompido.", "error");
                 }
                 event.target.value = ''; // Reset input
             };
@@ -1439,13 +1686,11 @@
                 const data = JSON.parse(conteudoTexto);
                 if (!Array.isArray(data)) throw new Error("O TXT não contém uma lista válida.");
                 
-                // Converte as variáveis para injetar no HTML de forma segura
                 const escapedData = JSON.stringify(data).replace(/</g, '\\u003c');
                 const platStr = JSON.stringify(PLATFORMS).replace(/</g, '\\u003c');
                 const medStr = JSON.stringify(MEDIAS).replace(/</g, '\\u003c');
                 const langStr = JSON.stringify(LANGUAGES).replace(/</g, '\\u003c');
                 
-                // Monta o arquivo HTML completo (Visual idêntico ao original)
                 let htmlContent = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -1474,9 +1719,23 @@
 
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-white font-bold text-lg">Todos os Jogos</h2>
+            <h2 class="text-white font-bold text-lg">Busca Geral</h2>
             <input type="text" id="search-input" placeholder="Buscar jogo..." class="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500 w-64" onkeyup="renderGames()">
         </div>
+        
+        <!-- Jogando Agora Section -->
+        <div id="playing-now-section" class="mb-10 hidden">
+            <h3 class="text-slate-300 font-bold text-sm mb-4 px-1 flex items-center gap-2 uppercase tracking-widest">
+                <span class="relative flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                </span>
+                Em Destaque: Jogando
+            </h3>
+            <div id="playing-now-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6 w-full"></div>
+        </div>
+
+        <h3 id="regular-title" class="text-slate-500 font-bold text-sm mb-4 px-1 uppercase tracking-widest hidden">Demais Jogos</h3>
         <div id="games-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6 w-full pb-8"></div>
     </main>
 
@@ -1490,6 +1749,11 @@
             <div class="flex-1 overflow-y-auto p-6 md:p-8 flex flex-col md:flex-row gap-8 bg-slate-950/50 scrollbar-hide">
                 <div class="w-full md:w-1/3 flex flex-col gap-4 shrink-0">
                     <img id="modal-cover" src="" class="w-full aspect-[3/4] object-contain object-center rounded-xl bg-slate-950 border border-slate-800 drop-shadow-2xl p-2" />
+                    
+                    <div id="modal-playing" class="hidden bg-green-900/20 border border-green-800/50 p-4 rounded-xl mt-2">
+                        <span class="text-sm font-bold text-green-400 uppercase tracking-wider block flex items-center gap-2"><i data-lucide="gamepad-2" class="w-4 h-4"></i> Jogando Agora</span>
+                    </div>
+
                     <div id="modal-borrowed" class="hidden bg-red-900/20 border border-red-800/50 p-4 rounded-xl">
                         <span class="text-xs font-bold text-red-400 uppercase tracking-wider block mb-1 flex items-center gap-2"><i data-lucide="alert-circle" class="w-4 h-4"></i> Emprestado para:</span>
                         <span id="modal-borrowed-to" class="font-bold text-slate-200"></span>
@@ -1524,38 +1788,61 @@
         const MEDIAS = ${medStr};
         const LANGUAGES = ${langStr};
 
+        function generateCard(game) {
+            const plats = game.platforms || (game.platform ? [game.platform] : []);
+            let covers = [];
+            if (plats.length > 0) {
+                PLATFORMS.forEach(p => { 
+                    if (plats.includes(p.id) && game.covers && game.covers[p.id]) covers.push(game.covers[p.id]); 
+                });
+            }
+            if (covers.length === 0 && game.coverUrl) covers.push(game.coverUrl);
+            const displayCover = covers.length > 0 ? covers[0] : 'https://via.placeholder.com/300x400/0f172a/475569?text=Sem+Capa';
+            
+            let borderClass = 'border-slate-800 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]';
+            if(game.isBorrowed) borderClass = 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] outline outline-2 outline-red-500/50';
+            else if(game.isPlaying) borderClass = 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)] outline outline-2 outline-green-500/40';
+
+            const badgeBorrow = game.isBorrowed ? \`<div class="absolute top-2 right-2 z-10 flex items-center gap-2 bg-red-600 border border-red-500/50 px-2 py-1 rounded-full text-[9px] font-bold text-white"><span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> EMPRESTADO</div>\` : '';
+            const badgePlay = game.isPlaying ? \`<div class="absolute top-2 left-2 z-10 flex items-center gap-2 bg-green-600 border border-green-500/50 px-2 py-1 rounded-full text-[9px] font-bold text-white"><span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> JOGANDO</div>\` : '';
+            
+            return \`
+                <div onclick="openModal('\${game.id}')" class="bg-slate-900 border rounded-2xl overflow-hidden cursor-pointer hover:-translate-y-1.5 transition-all flex flex-col group relative \${borderClass}">
+                    <div class="relative aspect-[3/4] bg-slate-950 flex items-center justify-center p-1">
+                        \${badgeBorrow}
+                        \${badgePlay}
+                        <img src="\${displayCover}" class="w-full h-full object-contain group-hover:scale-[1.03] transition-transform duration-700" loading="lazy" />
+                    </div>
+                    <div class="p-4 border-t border-slate-800 flex-1">
+                        <h3 class="font-bold text-slate-100 uppercase text-sm line-clamp-2 group-hover:text-blue-400 transition-colors" title="\${game.title}">\${game.title}</h3>
+                    </div>
+                </div>\`;
+        }
+
         function renderGames() {
             const query = document.getElementById('search-input').value.toLowerCase();
             const filtered = games.filter(g => (g.title||'').toLowerCase().includes(query));
             document.getElementById('display-count').textContent = filtered.length + ' jogos';
             
-            let html = '';
-            filtered.sort((a,b) => (a.title||'').localeCompare((b.title||''))).forEach(game => {
-                const plats = game.platforms || (game.platform ? [game.platform] : []);
-                let covers = [];
-                if (plats.length > 0) {
-                    PLATFORMS.forEach(p => { 
-                        if (plats.includes(p.id) && game.covers && game.covers[p.id]) covers.push(game.covers[p.id]); 
-                    });
-                }
-                if (covers.length === 0 && game.coverUrl) covers.push(game.coverUrl);
-                const displayCover = covers.length > 0 ? covers[0] : 'https://via.placeholder.com/300x400/0f172a/475569?text=Sem+Capa';
-                
-                const borderClass = game.isBorrowed ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] outline outline-2 outline-red-500/50' : 'border-slate-800 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]';
-                const badge = game.isBorrowed ? \`<div class="absolute top-2 right-2 z-10 flex items-center gap-2 bg-red-600 border border-red-500/50 px-2 py-1 rounded-full text-[9px] font-bold text-white"><span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> EMPRESTADO</div>\` : '';
-                
-                html += \`
-                    <div onclick="openModal('\${game.id}')" class="bg-slate-900 border rounded-2xl overflow-hidden cursor-pointer hover:-translate-y-1.5 transition-all flex flex-col group relative \${borderClass}">
-                        <div class="relative aspect-[3/4] bg-slate-950 flex items-center justify-center p-1">
-                            \${badge}
-                            <img src="\${displayCover}" class="w-full h-full object-contain group-hover:scale-[1.03] transition-transform duration-700" loading="lazy" />
-                        </div>
-                        <div class="p-4 border-t border-slate-800 flex-1">
-                            <h3 class="font-bold text-slate-100 uppercase text-sm line-clamp-2 group-hover:text-blue-400 transition-colors" title="\${game.title}">\${game.title}</h3>
-                        </div>
-                    </div>\`;
-            });
-            document.getElementById('games-grid').innerHTML = html;
+            const playingNow = filtered.filter(g => g.isPlaying);
+            const regular = filtered.filter(g => !g.isPlaying);
+
+            if (playingNow.length > 0) {
+                document.getElementById('playing-now-grid').innerHTML = playingNow.sort((a,b) => (a.title||'').localeCompare((b.title||''))).map(generateCard).join('');
+                document.getElementById('playing-now-section').classList.remove('hidden');
+            } else {
+                document.getElementById('playing-now-section').classList.add('hidden');
+            }
+            
+            if (regular.length > 0) {
+                document.getElementById('games-grid').innerHTML = regular.sort((a,b) => (a.title||'').localeCompare((b.title||''))).map(generateCard).join('');
+                document.getElementById('games-grid').classList.remove('hidden');
+                document.getElementById('regular-title').classList.remove('hidden');
+            } else {
+                document.getElementById('games-grid').classList.add('hidden');
+                document.getElementById('regular-title').classList.add('hidden');
+            }
+            
             lucide.createIcons();
         }
 
@@ -1581,8 +1868,10 @@
             } else {
                 document.getElementById('modal-borrowed').classList.add('hidden');
             }
+
+            if(game.isPlaying) document.getElementById('modal-playing').classList.remove('hidden');
+            else document.getElementById('modal-playing').classList.add('hidden');
             
-            // Popula Plataformas
             let platHtml = '';
             plats.forEach(pId => {
                 const pObj = PLATFORMS.find(p => p.id === pId);
@@ -1590,7 +1879,6 @@
             });
             document.getElementById('modal-platforms').innerHTML = platHtml || '<span class="text-slate-500 text-sm">Nenhuma informada</span>';
 
-            // Popula Mídias
             let medHtml = '';
             (game.medias||[]).forEach(mId => {
                 const mObj = MEDIAS.find(m => m.id === mId);
@@ -1598,7 +1886,6 @@
             });
             document.getElementById('modal-medias').innerHTML = medHtml || '<span class="text-slate-500 text-sm">Nenhuma informada</span>';
             
-            // Popula Idiomas
             let langHtml = '';
             let langs = Array.isArray(game.languages) ? game.languages : [];
             langs.forEach(lId => {
@@ -1608,7 +1895,6 @@
             if(typeof game.languages === 'string' && game.languages) langHtml = \`<span class="text-sm font-bold text-indigo-400">\${game.languages}</span>\`;
             document.getElementById('modal-langs').innerHTML = langHtml || '<span class="text-slate-500 text-sm">Nenhuma informada</span>';
             
-            // Sinopse
             document.getElementById('modal-synopsis').textContent = game.synopsis || 'Nenhuma sinopse disponível.';
             
             const modal = document.getElementById('view-modal');
@@ -1629,35 +1915,29 @@
 </body>
 </html>`;
 
-                // Aqui é onde a mágica acontece: O software salva o arquivo nativamente no diretório escolhido
                 if(fs) {
                     fs.writeFileSync(caminhoSalvar, htmlContent, 'utf-8');
-                    alert("Show! A página HTML com sua coleção foi gerada e salva com sucesso em:\n\n" + caminhoSalvar);
+                    customAlert("A página HTML com sua coleção foi gerada e salva com sucesso!", "success");
                 } else {
                     console.warn("Função FS nativa chamada em ambiente sem suporte.");
                 }
 
             } catch (err) {
                 console.error("Erro na montagem HTML:", err);
-                alert("Erro ao montar a página HTML. O formato do TXT pode estar corrompido.");
+                customAlert("Erro ao montar a página HTML. O formato do TXT pode estar corrompido.", "error");
             }
         }
 
         // --- EXPORTAÇÃO SOFISTICADA PARA EXCEL ---
         window.exportarPlanilhaSofisticada = async function() {
-            if (games.length === 0) return alert("Sua coleção está vazia!");
+            if (games.length === 0) return customAlert("Sua coleção está vazia!", "error");
 
-            // Inicia o Workbook
             const workbook = new ExcelJS.Workbook();
             workbook.creator = 'GameVault App';
             workbook.created = new Date();
 
-            // ==========================================
-            // ABA 1: DASHBOARD (RESUMO)
-            // ==========================================
             const sheetResumo = workbook.addWorksheet('📊 Dashboard', { properties: { tabColor: { argb: 'FF0ea5e9' } } });
             
-            // Título Principal
             sheetResumo.mergeCells('A1:C2');
             const titleCell = sheetResumo.getCell('A1');
             titleCell.value = 'Relatório Geral - GameVault';
@@ -1665,8 +1945,8 @@
             titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0f172a' } };
             titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
-            // Estatísticas Básicas
             const totalEmprestados = games.filter(g => g.isBorrowed).length;
+            const totalJogando = games.filter(g => g.isPlaying).length;
             const plataformasUnicas = [...new Set(games.flatMap(g => g.platforms || (g.platform ? [g.platform] : [])))];
 
             sheetResumo.getColumn('A').width = 25;
@@ -1677,11 +1957,11 @@
             
             sheetResumo.addRow(['Total de Jogos', games.length]);
             sheetResumo.addRow(['Jogos Emprestados', totalEmprestados]);
+            sheetResumo.addRow(['Jogando Agora', totalJogando]);
             sheetResumo.addRow(['Plataformas Diferentes', plataformasUnicas.length]);
             sheetResumo.addRow(['Data de Exportação', new Date().toLocaleDateString('pt-BR')]);
 
-            // Estilizando as linhas de métricas
-            for(let i = 5; i <= 8; i++) {
+            for(let i = 5; i <= 9; i++) {
                 sheetResumo.getCell(`A${i}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
                 sheetResumo.getCell(`A${i}`).border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
                 sheetResumo.getCell(`B${i}`).font = { bold: true };
@@ -1689,37 +1969,32 @@
                 sheetResumo.getCell(`B${i}`).border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
             }
 
-            // ==========================================
-            // ABA 2: BANCO DE DADOS (COLEÇÃO)
-            // ==========================================
             const sheetDados = workbook.addWorksheet('🎮 Banco de Dados', { properties: { tabColor: { argb: 'FF10b981' } } });
 
-            // Cabeçalhos
             sheetDados.columns = [
                 { header: 'Título do Jogo', key: 'title', width: 40 },
                 { header: 'Plataformas', key: 'platforms', width: 25 },
                 { header: 'Mídias', key: 'medias', width: 20 },
-                { header: 'Status', key: 'status', width: 15 },
+                { header: 'Status', key: 'status', width: 20 },
                 { header: 'Emprestado Para', key: 'borrowedTo', width: 25 }
             ];
 
-            // Estilizando o Cabeçalho
             const headerRow = sheetDados.getRow(1);
             headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
             headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
             headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
             headerRow.height = 25;
 
-            // Filtro Automático (Setinhas no Excel)
             sheetDados.autoFilter = 'A1:E1';
 
-            // Preenchendo os dados
             let safeGames = [...games].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
             safeGames.forEach((g, index) => {
-                // Recuperação segura para garantir que jogos com estrutura antiga não partam o script
                 const plats = (g.platforms && g.platforms.length > 0 ? g.platforms : (g.platform ? [g.platform] : [])).map(p => p.toUpperCase()).join(', ');
                 const meds = (g.medias || []).map(m => m.toUpperCase()).join(', ');
-                const statusStr = g.isBorrowed ? '🔴 Emprestado' : '🟢 Na Coleção';
+                
+                let statusStr = '🟢 Na Coleção';
+                if (g.isBorrowed) statusStr = '🔴 Emprestado';
+                else if (g.isPlaying) statusStr = '🎮 Jogando Agora';
                 
                 const row = sheetDados.addRow({
                     title: g.title,
@@ -1729,17 +2004,15 @@
                     borrowedTo: g.isBorrowed ? g.borrowedTo : '-'
                 });
 
-                // Zebrando as linhas para visual profissional
                 if (index % 2 === 0) {
                     row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
                 }
                 
-                // Centralizando colunas específicas
                 row.getCell('status').alignment = { horizontal: 'center' };
                 if (g.isBorrowed) row.getCell('status').font = { color: { argb: 'FFDC2626' }, bold: true };
+                else if (g.isPlaying) row.getCell('status').font = { color: { argb: 'FF16A34A' }, bold: true };
             });
 
-            // Geração e Download do Arquivo
             const buffer = await workbook.xlsx.writeBuffer();
             const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             
@@ -1866,7 +2139,7 @@
 
             } catch (error) {
                 console.error("API Error:", error);
-                alert("Erro ao conectar com a API de busca. Verifique o console.");
+                customAlert("Erro ao conectar com a API de busca. Tente novamente mais tarde.", "error");
             } finally {
                 dom.btnApiSearch.disabled = false;
                 dom.apiSearchText.classList.remove('hidden');
@@ -1918,7 +2191,6 @@
             
             renderCoverPreview();
             
-            // Feedback Visual de que foi importado (mantendo a lista aberta)
             if (element) {
                 const btn = element.querySelector('.import-btn');
                 if (btn) {
@@ -1951,10 +2223,11 @@
                 if (data && data[0]) {
                     const translatedText = data[0].map(item => item[0]).join('');
                     dom.fSynopsis.value = translatedText;
+                    customAlert("Tradução concluída com sucesso!", "success");
                 }
             } catch (err) {
                 console.error("Erro na tradução", err);
-                alert("Erro ao traduzir. A conexão pode ter falhado.");
+                customAlert("Erro ao traduzir. A conexão pode ter falhado.", "error");
             } finally {
                 dom.btnTranslate.disabled = false;
                 dom.translateNormal.classList.remove('hidden');

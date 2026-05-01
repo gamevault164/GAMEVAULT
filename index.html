@@ -1,0 +1,2007 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameVault - Gerenciador de Coleção</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Excel JS para exportação/importação avançada -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    
+    <!-- Firebase Clássico (Compat SDK) -->
+    <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-database-compat.js"></script>
+    
+    <!-- EmailJS -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+    <!-- Configuração de fonte base -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; color-scheme: dark; background-color: #020617; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .game-card:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59,130,246,0.3);
+            border-color: #3b82f6;
+            transform: translateY(-6px);
+        }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-200 font-sans flex flex-col selection:bg-blue-500/30 overflow-y-scroll relative">
+
+    <!-- TELA DE LOGIN / REGISTRO / RESET -->
+    <div id="login-screen" class="fixed inset-0 bg-slate-950 z-[100] flex flex-col items-center justify-center px-6 transition-opacity duration-500 overflow-y-auto py-10 scrollbar-hide">
+        <div class="w-full max-w-sm flex flex-col items-center animate-slide-up my-auto">
+            <img src="https://raw.githubusercontent.com/Marcelo9035/IMAGES/refs/heads/main/Novo%20Projeto.png" class="h-28 w-auto mb-6 drop-shadow-[0_0_20px_rgba(59,130,246,0.6)]" alt="Logo" />
+            <h1 class="text-4xl font-bold text-white mb-2 tracking-tight">GameVault</h1>
+            <p id="auth-subtitle" class="text-slate-400 text-sm mb-8 text-center">Identifica-te para aceder ao cofre</p>
+
+            <!-- FORMULÁRIO: ENTRAR -->
+            <div id="form-login" class="w-full bg-slate-900 border border-slate-800 rounded-[2rem] p-6 shadow-2xl">
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="user" class="w-3 h-3"></i> Utilizador ou E-mail</label>
+                    <input type="text" id="login-user" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="" onkeypress="if(event.key === 'Enter') document.getElementById('login-pass').focus()">
+                </div>
+                <div class="mb-2 relative">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="lock" class="w-3 h-3"></i> Palavra-passe</label>
+                    <input type="password" id="login-pass" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors pr-10" placeholder="" onkeypress="if(event.key === 'Enter') doLogin()">
+                    <button onclick="togglePasswordView('login-pass', 'login-eye')" class="absolute right-3 top-[34px] text-slate-500 p-1 outline-none">
+                        <i id="login-eye" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                
+                <div class="flex justify-end mb-6">
+                    <button onclick="switchAuthView('reset')" class="text-[10px] text-slate-400 hover:text-blue-400 font-medium transition-colors">Esqueci-me da palavra-passe</button>
+                </div>
+                
+                <button onclick="doLogin()" id="btn-login" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 shadow-[0_4px_20px_rgba(59,130,246,0.4)] mb-4">
+                    <span id="login-btn-text">Entrar no Cofre</span>
+                    <i id="login-btn-icon" data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+                
+                <div class="border-t border-slate-800 pt-4 text-center">
+                    <p class="text-xs text-slate-400">Não tens uma conta?</p>
+                    <button onclick="switchAuthView('register')" class="text-blue-400 font-bold text-sm mt-1 hover:text-blue-300 transition-colors">Registar Novo Cofre</button>
+                </div>
+            </div>
+
+            <!-- FORMULÁRIO: CADASTRAR -->
+            <div id="form-register" class="w-full bg-slate-900 border border-slate-800 rounded-[2rem] p-6 shadow-2xl hidden">
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="user" class="w-3 h-3"></i> Criar Nome de Utilizador</label>
+                    <input type="text" id="reg-user" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="Ex: JoaoSilva" onkeypress="if(event.key === 'Enter') document.getElementById('reg-email').focus()">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="mail" class="w-3 h-3"></i> E-mail (Opcional)</label>
+                    <input type="email" id="reg-email" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="joao@exemplo.com" onkeypress="if(event.key === 'Enter') document.getElementById('reg-pass').focus()">
+                </div>
+                <div class="mb-6 relative">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="key" class="w-3 h-3"></i> Criar Palavra-passe</label>
+                    <input type="password" id="reg-pass" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors pr-10" placeholder="Cria uma palavra-passe forte" onkeypress="if(event.key === 'Enter') doRegister()">
+                    <button onclick="togglePasswordView('reg-pass', 'reg-eye')" class="absolute right-3 top-[34px] text-slate-500 p-1 outline-none">
+                        <i id="reg-eye" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                
+                <button onclick="doRegister()" id="btn-register" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 shadow-[0_4px_20px_rgba(16,185,129,0.4)] mb-4">
+                    <span id="reg-btn-text">Confirmar Registo</span>
+                    <i id="reg-btn-icon" data-lucide="check-circle" class="w-4 h-4"></i>
+                </button>
+
+                <div class="text-center">
+                    <button onclick="switchAuthView('login')" class="text-xs text-slate-400 hover:text-white transition-colors">Voltar para o Início de Sessão</button>
+                </div>
+            </div>
+
+            <!-- FORMULÁRIO: REDEFINIR SENHA -->
+            <div id="form-reset" class="w-full bg-slate-900 border border-slate-800 rounded-[2rem] p-6 shadow-2xl hidden">
+                <p class="text-xs text-slate-400 mb-5 text-center leading-relaxed">Informa o teu Nome de Utilizador atual e escolhe uma nova palavra-passe para a tua conta.</p>
+                
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="user" class="w-3 h-3"></i> Nome de Utilizador</label>
+                    <input type="text" id="reset-user" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="O teu utilizador" onkeypress="if(event.key === 'Enter') document.getElementById('reset-pass').focus()">
+                </div>
+                <div class="mb-6 relative">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="lock" class="w-3 h-3"></i> Nova Palavra-passe</label>
+                    <input type="password" id="reset-pass" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-amber-500 transition-colors pr-10" placeholder="Escolhe a nova palavra-passe" onkeypress="if(event.key === 'Enter') doReset()">
+                    <button onclick="togglePasswordView('reset-pass', 'reset-eye')" class="absolute right-3 top-[34px] text-slate-500 p-1 outline-none">
+                        <i id="reset-eye" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                
+                <button onclick="doReset()" id="btn-reset" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 shadow-[0_4px_20px_rgba(245,158,11,0.4)] mb-4">
+                    <span id="reset-btn-text">Redefinir Palavra-passe</span>
+                    <i id="reset-btn-icon" data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+
+                <div class="text-center">
+                    <button onclick="switchAuthView('login')" class="text-xs text-slate-400 hover:text-white transition-colors">Voltar para o Início de Sessão</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WRAPPER DA APLICAÇÃO (Visível apenas após login) -->
+    <div id="app-wrapper" class="hidden flex-col w-full min-h-screen">
+        <!-- HEADER NAVBAR PRINCIPAL -->
+        <header class="sticky top-0 z-40 w-full backdrop-blur-lg bg-slate-900/80 border-b border-slate-800 shadow-sm transition-colors duration-500">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+                <!-- Logo -->
+                <div class="flex items-center shrink-0">
+                    <button onclick="togglePlatformMenu()" class="flex items-center gap-2 outline-none active:scale-95 transition-transform text-left py-2">
+                        <img id="main-app-logo" src="https://raw.githubusercontent.com/Marcelo9035/IMAGES/refs/heads/main/Novo%20Projeto.png" 
+                             alt="GameVault Logo" 
+                             class="h-20 w-auto object-contain drop-shadow-[0_0_8px_rgba(59,130,246,0.6)] transition-all duration-300 cursor-pointer" />
+                        <span class="font-bold text-2xl tracking-tight text-white hidden sm:block ml-4">GameVault</span>
+                        <i id="platform-menu-chevron" data-lucide="chevron-down" class="w-5 h-5 text-slate-400 transition-transform duration-300 ml-1"></i>
+                    </button>
+                </div>
+
+                <!-- Search Bar - Desktop -->
+                <div class="hidden md:flex flex-1 max-w-xl relative group">
+                    <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-400 transition-colors"></i>
+                    <input type="text" id="search-desktop" placeholder="Pesquisar jogos na sua coleção..." class="w-full pl-10 pr-4 py-2 bg-slate-800/80 border border-slate-700 rounded-full text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 focus:bg-slate-800 transition-all" />
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <div class="hidden md:flex items-center gap-2 mr-2 text-sm text-slate-300 font-bold bg-slate-800 py-1.5 px-4 rounded-full border border-slate-700 shadow-inner">
+                        <i data-lucide="user" class="w-4 h-4 text-blue-400"></i> <span id="logged-user-name">Usuário</span>
+                    </div>
+                    <button onclick="openNewGameModal()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 md:px-6 py-2.5 rounded-full text-sm font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] active:scale-95 whitespace-nowrap">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Adicionar Jogo
+                    </button>
+                    <button onclick="fazerLogout()" class="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-full transition-colors active:scale-95" title="Sair da Conta">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                    <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-slate-300 hover:bg-slate-800 rounded-full transition-colors">
+                        <i data-lucide="menu" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- MENU OCULTO DE PLATAFORMAS E AÇÕES (Estilo App) -->
+        <div id="platform-dropdown" class="absolute top-[80px] left-0 w-full md:w-[400px] md:rounded-br-3xl max-h-[calc(100dvh-80px)] overflow-y-auto scrollbar-hide bg-slate-900/95 backdrop-blur-2xl border-b md:border-r border-slate-800 z-[45] flex flex-col px-6 py-6 shadow-[0_20px_40px_rgba(0,0,0,0.6)] transition-all duration-300 -translate-y-full opacity-0 pointer-events-none pb-10">
+            
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Ferramentas de Base de Dados</h3>
+            
+            <button onclick="exportarPlanilhaSofisticada(this)" class="w-full text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-4 py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-500/20 active:scale-95 transition-all border border-emerald-500/20 shadow-[0_4px_15px_rgba(16,185,129,0.15)] mb-2">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Relatório XLSX Avançado
+            </button>
+
+            <div class="grid grid-cols-3 gap-2">
+                <button onclick="exportarTXT(this)" class="w-full text-[10px] font-bold text-blue-400 bg-blue-500/10 py-3 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-blue-500/20 active:scale-95 transition-all border border-blue-500/20">
+                    <i data-lucide="download-cloud" class="w-4 h-4"></i> Exp. TXT
+                </button>
+                <button onclick="document.getElementById('import-txt-input').click()" class="w-full text-[10px] font-bold text-amber-400 bg-amber-500/10 py-3 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-amber-500/20 active:scale-95 transition-all border border-amber-500/20">
+                    <i data-lucide="file-code-2" class="w-4 h-4"></i> Imp. TXT
+                </button>
+                <button onclick="exportarVisualizadorHTML(this)" class="w-full text-[10px] font-bold text-purple-400 bg-purple-500/10 py-3 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-purple-500/20 active:scale-95 transition-all border border-purple-500/20">
+                    <i data-lucide="layout-template" class="w-4 h-4"></i> Gerar HTML
+                </button>
+                <input type="file" id="import-txt-input" accept=".txt" class="hidden" onchange="importarTXT(event)">
+            </div>
+
+            <!-- SEÇÃO DE RECUPERAÇÃO E CORREÇÃO -->
+            <div class="mt-6 pt-5 border-t border-slate-800/50 flex flex-col gap-3">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Manutenção e Correções</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="window.recuperarPerdidos()" class="w-full text-[10px] font-bold text-rose-400 bg-rose-500/10 py-3 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-rose-500/20 active:scale-95 transition-all border border-rose-500/20 text-center px-2" title="Procura jogos perdidos na base antiga">
+                        <i data-lucide="database-zap" class="w-4 h-4"></i> Resgatar Perdidos
+                    </button>
+                    <button onclick="document.getElementById('import-excel-input').click()" class="w-full text-[10px] font-bold text-emerald-400 bg-emerald-500/10 py-3 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-emerald-500/20 active:scale-95 transition-all border border-emerald-500/20 text-center px-2" title="Restaura os jogos usando a planilha XLSX">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Restaurar via Excel
+                    </button>
+                    <button onclick="window.desejosParaColecao()" class="col-span-2 w-full text-[10px] font-bold text-indigo-400 bg-indigo-500/10 py-3 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-indigo-500/20 active:scale-95 transition-all border border-indigo-500/20 text-center px-2" title="Move os desejos para a coleção principal">
+                        <i data-lucide="folder-input" class="w-4 h-4"></i> Desejos -> Coleção
+                    </button>
+                </div>
+                <input type="file" id="import-excel-input" accept=".xlsx" class="hidden" onchange="window.importarExcel(event)">
+            </div>
+        </div>
+
+        <!-- MOBILE SEARCH -->
+        <div class="md:hidden px-4 py-3 bg-slate-900 border-b border-slate-800">
+            <div class="relative group w-full">
+                <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-400 transition-colors"></i>
+                <input type="text" id="search-mobile" placeholder="Pesquisar..." class="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all" />
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 flex flex-col md:flex-row gap-8 relative">
+            
+            <!-- SIDEBAR (Filtros) -->
+            <aside id="sidebar-menu" class="md:w-56 shrink-0 hidden md:block transition-all">
+                <div class="sticky top-24 space-y-6">
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-500 mb-3 uppercase tracking-widest px-3">Biblioteca</h3>
+                        <nav class="space-y-1">
+                            <button onclick="setPlatformFilter('all')" id="filter-btn-all" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium bg-slate-800 text-blue-400 shadow-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                                <i data-lucide="library" class="w-[18px] h-[18px] text-blue-400"></i>
+                                Todos os Jogos
+                                <span id="count-all" class="ml-auto bg-slate-900 text-slate-400 py-0.5 px-2 rounded-full text-xs">0</span>
+                            </button>
+                            <button onclick="setPlatformFilter('wishlist')" id="filter-btn-wishlist" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent focus:outline-none focus:ring-2 focus:ring-slate-500/50 mt-1">
+                                <i data-lucide="star" class="w-[18px] h-[18px] text-slate-500"></i>
+                                Lista de Desejos
+                                <span id="count-wishlist" class="ml-auto bg-slate-900 text-slate-400 py-0.5 px-2 rounded-full text-xs">0</span>
+                            </button>
+                        </nav>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-xs font-bold text-slate-500 mb-3 uppercase tracking-widest px-3">Plataformas</h3>
+                        <nav class="space-y-1" id="platforms-container">
+                            <!-- Botões de plataforma gerados via JS -->
+                        </nav>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- GAME GRID SECTION -->
+            <section class="flex-1 w-full overflow-hidden">
+                
+                <!-- PLAYING NOW SECTION -->
+                <div id="playing-now-section" class="mb-8 hidden flex-col gap-3">
+                    <h2 class="text-white font-bold text-lg flex items-center gap-2 px-1"><i data-lucide="play-circle" class="w-5 h-5 text-blue-400"></i> A Jogar Agora</h2>
+                    <div id="playing-now-grid" class="flex gap-4 overflow-x-auto scrollbar-hide pb-4 w-full">
+                        <!-- Renderizado via JS -->
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-4 px-1 border-t border-slate-800/50 pt-4">
+                    <h2 class="text-white font-bold text-lg flex items-center gap-2">
+                        <span id="page-title">A Sua Coleção</span>
+                    </h2>
+                    <span class="text-xs font-medium bg-slate-900 text-blue-400 px-2.5 py-1 rounded-full border border-blue-500/20"><span id="display-count">0</span> jogos</span>
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="hidden flex-col items-center justify-center py-20 text-slate-400 bg-slate-900/50 rounded-3xl border border-slate-800 border-dashed animate-fade-in">
+                    <div class="p-6 bg-slate-800/50 rounded-full mb-4">
+                        <i data-lucide="library" class="w-12 h-12 text-slate-500"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-200 mb-2">Nenhum jogo encontrado</h2>
+                    <p class="text-slate-500 text-center max-w-sm mb-6">Parece que ainda não adicionou nenhum jogo para este filtro ou pesquisa.</p>
+                    <button onclick="openNewGameModal()" class="bg-blue-600 text-white font-medium hover:bg-blue-500 px-6 py-2.5 rounded-full transition-colors shadow-lg shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                        Adicionar um Jogo
+                    </button>
+                </div>
+
+                <!-- Games Grid -->
+                <div id="games-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6 w-full pb-8">
+                    <!-- Jogos renderizados via JS -->
+                </div>
+            </section>
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="bg-slate-900 border-t border-slate-800 mt-auto">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                <p class="text-sm text-slate-500 font-medium">© <span id="current-year"></span> GameVault. Sincronizado via Cloud.</p>
+                <div class="flex items-center gap-4 text-sm text-slate-400">
+                    <span id="firebase-status" class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.8)] inline-block animate-pulse"></span> Aguardando Login...</span>
+                </div>
+            </div>
+        </footer>
+    </div> <!-- END APP WRAPPER -->
+
+    <!-- MODAL ADICIONAR / EDITAR -->
+    <div id="game-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md items-center justify-center z-50 p-4 sm:p-6 hidden">
+        <div class="bg-slate-900 rounded-3xl shadow-2xl shadow-black/50 w-full max-w-5xl max-h-full flex flex-col overflow-hidden border border-slate-700 transform transition-all animate-fade-in relative">
+            
+            <!-- Modal Header -->
+            <div class="shrink-0 z-20 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 px-6 py-4 flex justify-between items-center">
+                <h2 id="modal-title-text" class="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
+                    <div id="modal-title-icon-wrapper" class="p-2 rounded-xl shadow-sm bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                        <i id="modal-title-icon" data-lucide="plus" class="w-6 h-6"></i>
+                    </div>
+                    <span>Adicionar Novo Jogo</span>
+                </h2>
+                <button onclick="closeModal()" class="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors bg-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500/50">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body (Rolável) -->
+            <div class="flex-1 overflow-y-auto p-6 md:p-8 flex flex-col lg:flex-row gap-8 bg-slate-950/50">
+                
+                <!-- Coluna Esquerda: Capa e Status -->
+                <div class="w-full lg:w-1/3 flex flex-col gap-6 shrink-0">
+                    
+                    <!-- Image Picker com Múltiplas Capas -->
+                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                <i data-lucide="image" class="w-4 h-4 text-blue-400"></i> Capa do Jogo
+                            </p>
+                        </div>
+                        
+                        <div id="modal-cover-tabs" class="flex flex-wrap gap-2 mb-3 hidden"></div>
+                        
+                        <div id="cover-preview-container" class="relative aspect-[3/4] bg-slate-950 rounded-xl border-2 border-dashed border-slate-700 mb-4 overflow-hidden flex items-center justify-center group transition-colors hover:border-blue-500">
+                            <!-- Injetado por JS -->
+                        </div>
+
+                        <input type="url" id="form-cover-url" placeholder="https://exemplo.com/capa.jpg" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all" />
+                    </div>
+
+                    <!-- Emprestado Toggle -->
+                    <div id="borrowed-card" class="bg-slate-900 border-slate-800 border rounded-2xl p-5 transition-all duration-300 shadow-sm">
+                        <label class="flex items-center gap-3 cursor-pointer group w-full justify-between">
+                            <span id="borrowed-label" class="font-bold text-sm transition-colors text-slate-300">Emprestado?</span>
+                            <div class="relative flex items-center justify-center shrink-0">
+                                <input type="checkbox" id="form-is-borrowed" class="peer sr-only" />
+                                <div class="w-12 h-7 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-red-500 transition-colors shadow-inner"></div>
+                            </div>
+                        </label>
+                        
+                        <div id="borrowed-to-container" class="mt-4 animate-fade-in space-y-2 hidden">
+                            <label class="block text-xs font-bold text-red-400 uppercase tracking-wider">Para quem?</label>
+                            <input type="text" id="form-borrowed-to" placeholder="Nome do amigo..." class="w-full px-4 py-3 bg-slate-950 border border-red-500/30 rounded-xl text-sm text-red-100 placeholder-red-300/50 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all font-semibold" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna Direita: Dados -->
+                <div class="w-full lg:w-2/3 flex flex-col gap-6">
+                    
+                    <!-- NOVIDADE: A Jogar e Desejos -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+                            <label class="flex items-center gap-2 cursor-pointer w-full justify-between">
+                                <span class="font-bold text-[12px] text-blue-400 uppercase tracking-wide flex items-center gap-1.5"><i data-lucide="play" class="w-4 h-4"></i> A Jogar Agora?</span>
+                                <div class="relative flex items-center">
+                                    <input type="checkbox" id="form-is-playing" class="peer sr-only" />
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500 transition-colors"></div>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-sm">
+                            <label class="flex items-center gap-2 cursor-pointer w-full justify-between">
+                                <span class="font-bold text-[12px] text-yellow-400 uppercase tracking-wide flex items-center gap-1.5"><i data-lucide="star" class="w-4 h-4"></i> Lista de Desejos?</span>
+                                <div class="relative flex items-center">
+                                    <input type="checkbox" id="form-is-wishlist" class="peer sr-only" onchange="toggleWishlistUI(this.checked)" />
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500 transition-colors"></div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Busca API DB -->
+                    <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-sm relative overflow-hidden shrink-0">
+                        <div class="absolute top-0 right-0 p-8 opacity-5 pointer-events-none"><i data-lucide="library" class="w-24 h-24 text-white"></i></div>
+                        
+                        <label class="block text-xs font-bold text-blue-400 mb-3 uppercase tracking-wider flex items-center gap-2 relative z-10">
+                            <i data-lucide="search" class="w-4 h-4"></i> Busca na Nuvem
+                        </label>
+                        <div class="flex flex-col sm:flex-row gap-3 relative z-10">
+                            <select id="api-source-select" class="px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-sm text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-bold shrink-0 cursor-pointer w-full sm:w-auto">
+                                <option value="igdb">IGDB</option>
+                                <option value="thegamesdb">TheGamesDB</option>
+                            </select>
+                            <input type="text" id="api-search-input" placeholder="Pesquise o nome oficial do jogo..." class="flex-1 px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all shadow-sm" />
+                            <button id="btn-api-search" onclick="handleApiSearch()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2 shrink-0">
+                                <span id="api-search-text">Procurar Capas</span>
+                                <i id="api-search-loader" data-lucide="refresh-cw" class="w-[18px] h-[18px] animate-spin hidden"></i>
+                            </button>
+                        </div>
+
+                        <!-- Lista de Resultados API -->
+                        <div id="api-results-container" class="mt-4 max-h-64 overflow-y-auto bg-slate-800 border border-slate-700 rounded-xl shadow-inner divide-y divide-slate-700/50 relative z-10 hidden scrollbar-hide">
+                            <!-- Resultados via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Formulário Principal -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 shadow-sm flex-1">
+                        <div class="col-span-1 md:col-span-2 space-y-2">
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Título do Jogo <span class="text-red-500">*</span></label>
+                            <input type="text" id="form-title" class="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-bold uppercase" placeholder="Ex: God of War Ragnarök" />
+                        </div>
+
+                        <div class="col-span-1 md:col-span-2 space-y-2">
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Plataformas Disponíveis</label>
+                            <!-- Container para as Tags de Plataformas (Múltipla Seleção) -->
+                            <div id="form-platforms-container" class="flex flex-wrap gap-2">
+                                <!-- Botões gerados via JS -->
+                            </div>
+                        </div>
+
+                        <div class="col-span-1 md:col-span-2 space-y-2">
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Formato de Mídia</label>
+                            <!-- Container para as Tags de Midia (Física/Digital) -->
+                            <div id="form-medias-container" class="flex flex-wrap gap-2">
+                                <!-- Botões gerados via JS -->
+                            </div>
+                        </div>
+
+                        <div class="col-span-1 md:col-span-2 space-y-2">
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Idiomas (Áudio / Legendas)</label>
+                            <!-- Container para as Tags de Idiomas (Múltipla Seleção) -->
+                            <div id="form-languages-container" class="flex flex-wrap gap-2">
+                                <!-- Botões gerados via JS -->
+                            </div>
+                        </div>
+
+                        <div class="col-span-1 md:col-span-2 flex flex-col h-full mt-2">
+                            <div class="flex justify-between items-center mb-3">
+                                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Sinopse</label>
+                                <button id="btn-translate" onclick="handleTranslate()" class="text-[11px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors tracking-wide focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                                    <i id="translate-icon-normal" data-lucide="languages" class="w-3.5 h-3.5"></i>
+                                    <i id="translate-icon-spin" data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin hidden"></i>
+                                    Traduzir para PT-BR
+                                </button>
+                            </div>
+                            <textarea id="form-synopsis" class="w-full flex-1 min-h-[160px] px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all resize-none leading-relaxed font-medium" placeholder="Digite um resumo sobre o jogo..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="shrink-0 z-20 bg-slate-900 border-t border-slate-800 px-6 py-5 flex flex-col sm:flex-row justify-between items-center gap-4 rounded-b-3xl">
+                <button id="btn-delete" onclick="deleteGame()" class="w-full sm:w-auto text-red-400 hover:text-red-300 text-sm font-bold flex items-center justify-center gap-2 px-5 py-3 rounded-xl hover:bg-red-500/10 transition-colors hidden focus:outline-none focus:ring-2 focus:ring-red-500/50">
+                    <i data-lucide="trash-2" class="w-[18px] h-[18px]"></i> Excluir da Biblioteca
+                </button>
+                <div id="btn-delete-placeholder" class="hidden sm:block"></div>
+                
+                <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <button onclick="closeModal()" class="w-full sm:w-auto px-6 py-3 border border-slate-700 text-slate-300 rounded-xl hover:bg-slate-800 text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500/50">
+                        Cancelar
+                    </button>
+                    <button onclick="saveGame()" class="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                        <i data-lucide="save" class="w-[18px] h-[18px]"></i> Salvar Jogo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DA LOJA VIRTUAL (WISHLIST) -->
+    <div id="store-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md items-center justify-center z-[60] p-4 sm:p-6 hidden">
+        <div class="bg-slate-900 rounded-3xl shadow-2xl shadow-black/50 w-full max-w-4xl max-h-full flex flex-col overflow-hidden border border-slate-700 transform transition-all animate-fade-in relative">
+            <div class="shrink-0 z-20 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 px-6 py-4 flex justify-between items-center">
+                <h2 class="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
+                    <div class="p-2 rounded-xl shadow-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        <i data-lucide="shopping-cart" class="w-6 h-6"></i>
+                    </div>
+                    <span>Central de Compras</span>
+                </h2>
+                <button onclick="closeStoreModal()" class="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors bg-slate-800 focus:outline-none">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6 md:p-8 flex flex-col md:flex-row gap-8 bg-slate-950/50">
+                <div class="w-full md:w-1/3 flex flex-col gap-4">
+                    <div class="relative w-full aspect-[3/4] bg-slate-950 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex items-center justify-center">
+                        <img id="store-modal-cover" src="" class="w-full h-full object-contain p-1" />
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-center">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Preço Estimado</p>
+                        <p class="text-2xl font-bold text-emerald-400">Ver Lojas <i data-lucide="arrow-right" class="w-4 h-4 inline-block ml-1"></i></p>
+                    </div>
+                    <button onclick="moveFromWishlistToCollection()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_15px_rgba(59,130,246,0.3)] active:scale-95">
+                        <i data-lucide="check-circle" class="w-5 h-5"></i> Já Comprei (Mover)
+                    </button>
+                    <button onclick="editWishlistGame()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i> Editar Dados
+                    </button>
+                </div>
+                <div class="w-full md:w-2/3 flex flex-col gap-6">
+                    <div>
+                        <h3 id="store-modal-title" class="text-3xl font-bold text-white uppercase tracking-tight mb-3">Título</h3>
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+                            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1"><i data-lucide="align-left" class="w-3 h-3"></i> Sinopse</p>
+                            <p id="store-modal-synopsis" class="text-sm text-slate-300 line-clamp-4 leading-relaxed"></p>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><i data-lucide="disc" class="w-4 h-4 text-emerald-400"></i> Lojas Brasileiras - Mídia Física</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="store-physical-links"></div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><i data-lucide="monitor" class="w-4 h-4 text-blue-400"></i> Lojas Brasileiras - Mídia Digital</h4>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="store-digital-links"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST INFORMATIVO -->
+    <div id="exit-toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white font-bold text-sm px-6 py-3 rounded-full shadow-2xl transition-opacity duration-300 opacity-0 pointer-events-none z-[100]">
+        Processando...
+    </div>
+
+    <!-- LOGIC SCRIPT -->
+    <script>
+        // --- FIREBASE SETUP E ESTADO DE AUTENTICAÇÃO ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDY9kDIscb8vXrEfWIAQ09uK_jLp0RmHdU",
+            authDomain: "gamedatabase-dae66.firebaseapp.com",
+            databaseURL: "https://gamedatabase-dae66-default-rtdb.firebaseio.com",
+            projectId: "gamedatabase-dae66",
+            storageBucket: "gamedatabase-dae66.firebasestorage.app",
+            messagingSenderId: "941291419161",
+            appId: "1:941291419161:web:7191574bd59e1feb1c5c88"
+        };
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+        } catch(e) {
+            console.error("Falha ao iniciar o Firebase:", e);
+        }
+
+        let currentUserId = null;
+        let gamesRef = null;
+
+        try {
+            if (typeof emailjs !== 'undefined') emailjs.init({ publicKey: "Jx8KfxZ22jEoUR73c" });
+        } catch(e) {}
+
+        // --- SISTEMA DE AUTENTICAÇÃO ---
+        function switchAuthView(viewName) {
+            document.getElementById('form-login').classList.add('hidden');
+            document.getElementById('form-register').classList.add('hidden');
+            document.getElementById('form-reset').classList.add('hidden');
+            document.getElementById('form-' + viewName).classList.remove('hidden');
+            
+            let subtitle = "Identifica-te para aceder ao cofre";
+            if (viewName === 'register') subtitle = "Cria o teu espaço pessoal para jogos";
+            if (viewName === 'reset') subtitle = "Recupera o acesso ao teu cofre";
+            document.getElementById('auth-subtitle').textContent = subtitle;
+        }
+
+        function togglePasswordView(inputId, iconId) {
+            const passInput = document.getElementById(inputId);
+            const eyeIcon = document.getElementById(iconId);
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                eyeIcon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                passInput.type = 'password';
+                eyeIcon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        function resetAuthBtn(type) {
+            if (type === 'login') {
+                document.getElementById('login-btn-text').textContent = "Entrar no Cofre";
+                document.getElementById('login-btn-icon').setAttribute('data-lucide', 'arrow-right');
+                document.getElementById('login-btn-icon').classList.remove('animate-spin');
+            } else if (type === 'register') {
+                document.getElementById('reg-btn-text').textContent = "Confirmar Registo";
+                document.getElementById('reg-btn-icon').setAttribute('data-lucide', 'check-circle');
+                document.getElementById('reg-btn-icon').classList.remove('animate-spin');
+            } else if (type === 'reset') {
+                document.getElementById('reset-btn-text').textContent = "Redefinir Palavra-passe";
+                document.getElementById('reset-btn-icon').setAttribute('data-lucide', 'refresh-cw');
+                document.getElementById('reset-btn-icon').classList.remove('animate-spin');
+            }
+            lucide.createIcons();
+        }
+
+        function doLogin() {
+            const u = document.getElementById('login-user').value.trim();
+            const p = document.getElementById('login-pass').value.trim();
+            if (!u || !p) return alert("Preenche o e-mail/utilizador e a palavra-passe!");
+
+            const uLower = u.toLowerCase();
+            const safeUserId = uLower.replace(/[^a-z0-9]/g, '_');
+
+            const btnText = document.getElementById('login-btn-text');
+            const btnIcon = document.getElementById('login-btn-icon');
+            btnText.textContent = "A verificar...";
+            btnIcon.setAttribute('data-lucide', 'loader-2');
+            btnIcon.classList.add('animate-spin');
+            lucide.createIcons();
+
+            setTimeout(() => {
+                if (uLower === 'marcelo' || uLower === 'marcelobonacin14@gmail.com') {
+                    if (p === 'm4rc3l00') {
+                        startAppForUser('marcelo_master', 'Marcelo');
+                        resetAuthBtn('login'); return;
+                    } else {
+                        alert("Palavra-passe incorreta para a conta principal!");
+                        resetAuthBtn('login'); return;
+                    }
+                }
+
+                firebase.database().ref('auth_simulator/' + safeUserId).once('value').then(snapshot => {
+                    const data = snapshot.val();
+                    if (data) {
+                        if (data.pwd === btoa(p)) {
+                            startAppForUser(safeUserId, u);
+                        } else {
+                            alert("Palavra-passe incorreta para o utilizador " + u);
+                        }
+                    } else {
+                        alert("Utilizador não encontrado. Clica em 'Registar Novo Cofre' abaixo.");
+                    }
+                    resetAuthBtn('login');
+                }).catch((err) => { 
+                    alert("Erro ao ligar à Base de Dados: " + err.message + "\n\nCertifique-se de ter acesso à internet.");
+                    resetAuthBtn('login'); 
+                });
+            }, 500);
+        }
+
+        function doRegister() {
+            const u = document.getElementById('reg-user').value.trim();
+            const e = document.getElementById('reg-email').value.trim();
+            const p = document.getElementById('reg-pass').value.trim();
+            
+            if (!u || !p) return alert("Preenche pelo menos o Nome de Utilizador e a Palavra-passe.");
+
+            const uLower = u.toLowerCase();
+            const safeUserId = uLower.replace(/[^a-z0-9]/g, '_');
+
+            const btnText = document.getElementById('reg-btn-text');
+            const btnIcon = document.getElementById('reg-btn-icon');
+            btnText.textContent = "A criar...";
+            btnIcon.setAttribute('data-lucide', 'loader-2');
+            btnIcon.classList.add('animate-spin');
+            lucide.createIcons();
+
+            setTimeout(() => {
+                if (uLower === 'marcelo' || uLower === 'marcelobonacin14@gmail.com') {
+                    alert("Este nome de utilizador é reservado.");
+                    resetAuthBtn('register'); return;
+                }
+
+                const authRef = firebase.database().ref('auth_simulator/' + safeUserId);
+                
+                authRef.once('value').then(snapshot => {
+                    if (snapshot.exists()) {
+                        alert("Este nome de utilizador já está em uso. Por favor, escolhe outro.");
+                        resetAuthBtn('register');
+                    } else {
+                        authRef.set({ pwd: btoa(p), email: e, created: Date.now() })
+                            .then(() => {
+                                if (e && typeof emailjs !== 'undefined') {
+                                    emailjs.send('service_l795j3d', 'template_bcl233e', { to_email: e, to_name: u, from_name: "Equipe GameVault", reply_to: "gamevault164@gmail.com", message: "Olá " + u + "! Bem-vindo(a) ao GameVault! O teu cofre pessoal de jogos foi criado com sucesso." }).catch(e=>console.log(e));
+                                }
+                                alert("Conta criada com sucesso! Bem-vindo(a) ao GameVault.");
+                                startAppForUser(safeUserId, u);
+                                resetAuthBtn('register');
+                            }).catch(err => {
+                                alert("O Firebase bloqueou a criação da conta. Verifica as regras de acesso.");
+                                resetAuthBtn('register');
+                            });
+                    }
+                }).catch((err) => { 
+                    alert("Erro de ligação: " + err.message); 
+                    resetAuthBtn('register'); 
+                });
+            }, 500);
+        }
+
+        function doReset() {
+            const u = document.getElementById('reset-user').value.trim();
+            const p = document.getElementById('reset-pass').value.trim();
+            if (!u || !p) return alert("Preenche o Nome de Utilizador e a Nova Palavra-passe!");
+
+            const uLower = u.toLowerCase();
+            const safeUserId = uLower.replace(/[^a-z0-9]/g, '_');
+
+            const btnText = document.getElementById('reset-btn-text');
+            const btnIcon = document.getElementById('reset-btn-icon');
+            btnText.textContent = "A atualizar...";
+            btnIcon.setAttribute('data-lucide', 'loader-2');
+            btnIcon.classList.add('animate-spin');
+            lucide.createIcons();
+
+            setTimeout(() => {
+                if (uLower === 'marcelo' || uLower === 'marcelobonacin14@gmail.com') {
+                    alert("A conta principal não pode ser redefinida por aqui.");
+                    resetAuthBtn('reset'); return;
+                }
+
+                const authRef = firebase.database().ref('auth_simulator/' + safeUserId);
+                authRef.once('value').then(snapshot => {
+                    const data = snapshot.val();
+                    if (data) {
+                        authRef.update({ pwd: btoa(p) }).then(() => {
+                            alert("A tua palavra-passe foi redefinida com sucesso! Já podes iniciar sessão.");
+                            document.getElementById('reset-user').value = '';
+                            document.getElementById('reset-pass').value = '';
+                            switchAuthView('login');
+                            resetAuthBtn('reset');
+                        });
+                    } else {
+                        alert("Utilizador não encontrado no nosso sistema.");
+                        resetAuthBtn('reset');
+                    }
+                }).catch((err) => { 
+                    alert("Erro de ligação: " + err.message); 
+                    resetAuthBtn('reset'); 
+                });
+            }, 500);
+        }
+
+        function fazerLogout() {
+            if (!confirm("Tens a certeza que desejas sair da conta?")) return;
+            
+            if (gamesRef) gamesRef.off();
+            currentUserId = null;
+            games = [];
+            
+            document.getElementById('login-user').value = '';
+            document.getElementById('login-pass').value = '';
+            document.getElementById('reg-user').value = '';
+            document.getElementById('reg-email').value = '';
+            document.getElementById('reg-pass').value = '';
+            
+            document.getElementById('app-wrapper').classList.add('hidden');
+            document.getElementById('app-wrapper').classList.remove('flex');
+            
+            switchAuthView('login');
+            
+            const loginScreen = document.getElementById('login-screen');
+            loginScreen.classList.remove('hidden');
+            loginScreen.classList.add('flex'); 
+            
+            dom.gamesGrid.innerHTML = '';
+            dom.playingNowGrid.innerHTML = '';
+            dom.displayCount.textContent = '0';
+            filterPlatform = 'all';
+        }
+
+        // --- CONSTANTS ---
+        const PLATFORMS = [
+            { id: 'pc', name: 'PC', icon: 'monitor' },
+            { id: 'ps1', name: 'PlayStation 1', icon: 'disc' },
+            { id: 'ps2', name: 'PlayStation 2', icon: 'disc' },
+            { id: 'ps3', name: 'PlayStation 3', icon: 'disc' },
+            { id: 'ps4', name: 'PlayStation 4', icon: 'gamepad-2' },
+            { id: 'ps5', name: 'PlayStation 5', icon: 'gamepad-2' },
+            { id: 'psp', name: 'PSP', icon: 'gamepad-2' },
+            { id: 'psvita', name: 'PS Vita', icon: 'gamepad-2' },
+        ];
+
+        const LANGUAGES = [
+            { id: 'pt-br-audio', name: 'PT-BR (Áudio)', short: 'PT-BR (Á)' },
+            { id: 'pt-br-leg', name: 'PT-BR (Leg)', short: 'PT-BR (L)' },
+            { id: 'en-audio', name: 'EN (Áudio)', short: 'EN (Á)' },
+            { id: 'en-leg', name: 'EN (Leg)', short: 'EN (L)' },
+            { id: 'es-audio', name: 'ES (Áudio)', short: 'ES (Á)' },
+            { id: 'es-leg', name: 'ES (Leg)', short: 'ES (L)' },
+            { id: 'jp-audio', name: 'JP (Áudio)', short: 'JP (Á)' },
+            { id: 'jp-leg', name: 'JP (Leg)', short: 'JP (L)' }
+        ];
+
+        const MEDIAS = [
+            { id: 'fisica', name: 'Mídia Física', icon: 'disc' },
+            { id: 'digital', name: 'Mídia Digital', icon: 'server' } 
+        ];
+
+        // --- STATE ---
+        let games = []; 
+        let filterPlatform = 'all';
+        let searchQuery = '';
+        let editingGameId = null;
+        let isMobileMenuOpen = false;
+        window.isPlatformMenuOpen = false;
+        
+        let formData_coverOptions = [];
+        let formData_currentCoverIndex = 0;
+        let formData_selectedPlatforms = []; 
+        let formData_selectedLanguages = [];
+        let formData_selectedMedias = [];
+        let formData_covers = {}; 
+        let formData_activePlatformCover = 'default';
+        let apiResultsList = [];
+
+        // --- DOM ELEMENTS ---
+        const dom = {
+            searchDesktop: document.getElementById('search-desktop'),
+            searchMobile: document.getElementById('search-mobile'),
+            sidebarMenu: document.getElementById('sidebar-menu'),
+            platformsContainer: document.getElementById('platforms-container'),
+            gamesGrid: document.getElementById('games-grid'),
+            playingNowSection: document.getElementById('playing-now-section'),
+            playingNowGrid: document.getElementById('playing-now-grid'),
+            emptyState: document.getElementById('empty-state'),
+            pageTitle: document.getElementById('page-title'),
+            displayCount: document.getElementById('display-count'),
+            countAll: document.getElementById('count-all'),
+            countWishlist: document.getElementById('count-wishlist'),
+            filterBtnAll: document.getElementById('filter-btn-all'),
+            filterBtnWishlist: document.getElementById('filter-btn-wishlist'),
+            firebaseStatus: document.getElementById('firebase-status'),
+            
+            modal: document.getElementById('game-modal'),
+            modalTitleText: document.querySelector('#modal-title-text span'),
+            modalTitleIconWrapper: document.getElementById('modal-title-icon-wrapper'),
+            modalTitleIcon: document.getElementById('modal-title-icon'),
+            
+            fTitle: document.getElementById('form-title'),
+            fPlatformsContainer: document.getElementById('form-platforms-container'),
+            fLanguagesContainer: document.getElementById('form-languages-container'),
+            fMediasContainer: document.getElementById('form-medias-container'),
+            fCoverUrl: document.getElementById('form-cover-url'),
+            fSynopsis: document.getElementById('form-synopsis'),
+            fIsPlaying: document.getElementById('form-is-playing'),
+            fIsWishlist: document.getElementById('form-is-wishlist'),
+            fIsBorrowed: document.getElementById('form-is-borrowed'),
+            fBorrowedTo: document.getElementById('form-borrowed-to'),
+            
+            borrowedCard: document.getElementById('borrowed-card'),
+            borrowedLabel: document.getElementById('borrowed-label'),
+            borrowedToContainer: document.getElementById('borrowed-to-container'),
+            coverPreviewContainer: document.getElementById('cover-preview-container'),
+            btnDelete: document.getElementById('btn-delete'),
+            btnDeletePlaceholder: document.getElementById('btn-delete-placeholder'),
+            
+            apiSourceSelect: document.getElementById('api-source-select'),
+            apiSearchInput: document.getElementById('api-search-input'),
+            apiResultsContainer: document.getElementById('api-results-container'),
+            btnApiSearch: document.getElementById('btn-api-search'),
+            apiSearchText: document.getElementById('api-search-text'),
+            apiSearchLoader: document.getElementById('api-search-loader'),
+            btnTranslate: document.getElementById('btn-translate'),
+            translateNormal: document.getElementById('translate-icon-normal'),
+            translateSpin: document.getElementById('translate-icon-spin'),
+        };
+
+        // --- INICIALIZAÇÃO PÓS-LOGIN ---
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('current-year').textContent = new Date().getFullYear();
+            setupEventListeners();
+            lucide.createIcons();
+        });
+
+        function startAppForUser(userId, displayUsername) {
+            currentUserId = userId;
+            
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('flex');
+            document.getElementById('app-wrapper').classList.remove('hidden');
+            document.getElementById('app-wrapper').classList.add('flex');
+            document.getElementById('logged-user-name').textContent = displayUsername;
+            
+            if (userId === 'marcelo_master') {
+                const oldRef = firebase.database().ref('games');
+                oldRef.once('value', snapshot => {
+                    const oldData = snapshot.val();
+                    if (oldData) {
+                        firebase.database().ref('users/marcelo_master/games').once('value', newSnap => {
+                            if (!newSnap.exists() || newSnap.val() === null) {
+                                firebase.database().ref('users/marcelo_master/games').set(oldData);
+                            }
+                        });
+                    }
+                });
+            }
+
+            const localKey = 'gameCollection_' + currentUserId;
+            const localData = localStorage.getItem(localKey);
+            
+            if (localData) {
+                try {
+                    let parsed = JSON.parse(localData);
+                    if (typeof parsed === 'object' && !Array.isArray(parsed)) parsed = Object.values(parsed);
+                    if (Array.isArray(parsed)) {
+                        games = parsed.filter(g => g !== null);
+                        updateSidebar();
+                        renderGames();
+                        lucide.createIcons();
+                    }
+                } catch (e) { console.error("Dados locais corrompidos", e); }
+            }
+            
+            gamesRef = firebase.database().ref('users/' + currentUserId + '/games');
+            
+            gamesRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                
+                if (data !== null) { 
+                    let safeGamesArray = Array.isArray(data) ? data : Object.values(data);
+                    games = safeGamesArray.filter(g => g !== null && typeof g === 'object');
+                    localStorage.setItem(localKey, JSON.stringify(games));
+                } else {
+                    games = [];
+                    localStorage.setItem(localKey, JSON.stringify([]));
+                }
+                
+                dom.firebaseStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] inline-block"></span> Nuvem Sincronizada`;
+                updateSidebar();
+                renderGames();
+                lucide.createIcons();
+            }, (error) => {
+                dom.firebaseStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] inline-block"></span> Nuvem Bloqueada`;
+            });
+        }
+
+        function saveToCloud(updatedGamesList) {
+            if (!currentUserId) return;
+            localStorage.setItem('gameCollection_' + currentUserId, JSON.stringify(updatedGamesList));
+            if (gamesRef) {
+                gamesRef.set(updatedGamesList).catch(err => {
+                    dom.firebaseStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] inline-block"></span> Nuvem Bloqueada`;
+                });
+            }
+        }
+
+        // --- MANUTENÇÃO E CORREÇÕES ---
+        
+        // 1. Resgatar Jogos Perdidos (Verifica a DB Original)
+        window.recuperarPerdidos = function() {
+            if(confirm("Isto vai procurar na base de dados antiga original e tentar resgatar qualquer jogo válido que possa estar faltando. Continuar?")) {
+                const oldRef = firebase.database().ref('games');
+                oldRef.once('value', snapshot => {
+                    const oldData = snapshot.val();
+                    if (!oldData) return alert("A base antiga está vazia.");
+                    
+                    let oldArr = Array.isArray(oldData) ? oldData : Object.values(oldData);
+                    oldArr = oldArr.filter(g => g !== null && typeof g === 'object' && g.id);
+                    
+                    let newGames = [...games];
+                    let added = 0;
+                    
+                    oldArr.forEach(oldG => {
+                        if(!newGames.find(ng => ng.id === oldG.id)) {
+                            oldG.isWishlist = false;
+                            newGames.push(oldG);
+                            added++;
+                        }
+                    });
+                    
+                    if (added > 0) {
+                        games = newGames;
+                        saveToCloud(games);
+                        updateSidebar();
+                        renderGames();
+                        alert(added + " jogos foram encontrados e restaurados para a sua Coleção!");
+                    } else {
+                        alert("Não encontramos nenhum jogo faltante na sua base original! A diferença de números no passado acontecia porque o Firebase contava os 'buracos' deixados por jogos antigos que já tinha apagado.");
+                    }
+                });
+            }
+        };
+
+        // 2. Mover todos os Desejos para a Coleção
+        window.desejosParaColecao = function() {
+            const wishlistGames = games.filter(g => g.isWishlist);
+            if (wishlistGames.length === 0) return alert("Você não tem jogos na Lista de Desejos.");
+            
+            if (confirm(`Existem ${wishlistGames.length} jogos marcados como Desejos. Deseja movê-los todos de volta para a sua Coleção Principal?`)) {
+                games = games.map(g => {
+                    if (g.isWishlist) g.isWishlist = false;
+                    return g;
+                });
+                saveToCloud(games);
+                updateSidebar();
+                renderGames();
+                alert("Jogos movidos de volta para a Coleção com sucesso!");
+            }
+        };
+
+        // 3. RESTAURAR VIA PLANILHA EXCEL
+        window.importarExcel = async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const toast = document.getElementById('exit-toast');
+                toast.textContent = "Lendo a planilha Excel...";
+                toast.classList.remove('opacity-0'); toast.classList.add('opacity-100');
+
+                const buffer = await file.arrayBuffer();
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(buffer);
+
+                let worksheet = workbook.getWorksheet('🎮 Base de Dados') || workbook.getWorksheet('Base de Dados');
+                if (!worksheet) {
+                    worksheet = workbook.worksheets[1] || workbook.worksheets[0]; 
+                }
+
+                if (!worksheet) {
+                    throw new Error("Não foi possível encontrar a aba de Banco de Dados no Excel.");
+                }
+
+                let adicionados = 0;
+                let currentGames = [...games];
+
+                worksheet.eachRow(function(row, rowNumber) {
+                    if (rowNumber === 1) return; // Pula o cabeçalho
+
+                    const rawTitle = row.getCell(1).value;
+                    let titleStr = '';
+                    
+                    // Tratamento seguro para extrair texto do ExcelJS
+                    if (typeof rawTitle === 'string') titleStr = rawTitle;
+                    else if (rawTitle && rawTitle.richText) titleStr = rawTitle.richText.map(rt => rt.text).join('');
+                    else if (rawTitle && typeof rawTitle === 'object') titleStr = String(rawTitle);
+                    else if (row.getCell(1).text) titleStr = row.getCell(1).text;
+
+                    const title = titleStr.trim().toUpperCase();
+                    if (!title) return;
+
+                    const existe = currentGames.find(g => g.title.toUpperCase() === title);
+                    if (!existe) {
+                        const platsRaw = String(row.getCell(2).value || row.getCell(2).text || '');
+                        const mediasRaw = String(row.getCell(3).value || row.getCell(3).text || '');
+                        const statusRaw = String(row.getCell(4).value || row.getCell(4).text || '');
+                        const borrowedRaw = String(row.getCell(5).value || row.getCell(5).text || '');
+
+                        let platforms = [];
+                        PLATFORMS.forEach(p => {
+                            if (platsRaw.toUpperCase().includes(p.name.toUpperCase()) || platsRaw.toUpperCase().includes(p.id.toUpperCase())) {
+                                platforms.push(p.id);
+                            }
+                        });
+                        if(platforms.length === 0) platforms.push('ps4'); // Fallback
+
+                        let medias = [];
+                        if (mediasRaw.toUpperCase().includes('FISICA') || mediasRaw.toUpperCase().includes('FÍSICA')) medias.push('fisica');
+                        if (mediasRaw.toUpperCase().includes('DIGITAL')) medias.push('digital');
+
+                        const isWishlist = statusRaw.toUpperCase().includes('DESEJO');
+                        const isBorrowed = statusRaw.toUpperCase().includes('EMPRESTADO');
+
+                        currentGames.push({
+                            id: Date.now().toString() + Math.random().toString().substr(2, 5),
+                            title: title,
+                            platforms: platforms,
+                            medias: medias,
+                            isWishlist: isWishlist,
+                            isBorrowed: isBorrowed,
+                            borrowedTo: isBorrowed && borrowedRaw !== '-' ? borrowedRaw : '',
+                            covers: {},
+                            coverUrl: '',
+                            synopsis: 'Jogo restaurado automaticamente via importação de Excel.',
+                            languages: [],
+                            isPlaying: false
+                        });
+                        adicionados++;
+                    }
+                });
+
+                if (adicionados > 0) {
+                    games = currentGames;
+                    saveToCloud(games);
+                    updateSidebar();
+                    renderGames();
+                    alert(`${adicionados} jogos faltantes foram restaurados com sucesso para a sua biblioteca a partir da planilha!`);
+                } else {
+                    alert("A planilha foi lida, mas todos os jogos contidos nela já existem na sua biblioteca atual.");
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert("Erro ao ler o ficheiro Excel: " + err.message);
+            } finally {
+                const toast = document.getElementById('exit-toast');
+                toast.classList.remove('opacity-100'); toast.classList.add('opacity-0');
+                event.target.value = ''; 
+                if (window.isPlatformMenuOpen) togglePlatformMenu();
+            }
+        }
+
+
+        // --- EVENT LISTENERS E KEYBOARD NAVIGATION ---
+        function setupEventListeners() {
+            const handleSearch = (e) => {
+                searchQuery = e.target.value.toLowerCase();
+                if(e.target.id === 'search-desktop') dom.searchMobile.value = searchQuery;
+                else dom.searchDesktop.value = searchQuery;
+                renderGames();
+            };
+
+            dom.searchDesktop.addEventListener('input', handleSearch);
+            dom.searchMobile.addEventListener('input', handleSearch);
+
+            dom.fIsBorrowed.addEventListener('change', (e) => toggleBorrowedUI(e.target.checked));
+
+            dom.fCoverUrl.addEventListener('input', (e) => {
+                formData_covers[formData_activePlatformCover] = e.target.value;
+                renderCoverPreview();
+            });
+            
+            dom.apiSearchInput.addEventListener('keydown', (e) => {
+                if(e.key === 'Enter') handleApiSearch();
+            });
+
+            dom.fSynopsis.addEventListener('input', () => {
+                dom.btnTranslate.disabled = !dom.fSynopsis.value.trim();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                const isModalOpen = !dom.modal.classList.contains('hidden');
+                const isStoreOpen = !document.getElementById('store-modal').classList.contains('hidden');
+                if (e.key === 'Escape') {
+                    if (isModalOpen) closeModal();
+                    if (isStoreOpen) closeStoreModal();
+                    return;
+                }
+                if (isModalOpen) {
+                    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON' && e.target.id !== 'api-search-input') {
+                        e.preventDefault(); saveGame(); 
+                    }
+                    return;
+                }
+            });
+        }
+
+        // --- UI FUNCTIONS ---
+        window.togglePlatformMenu = function() {
+            window.isPlatformMenuOpen = !window.isPlatformMenuOpen;
+            const dropdown = document.getElementById('platform-dropdown');
+            const chevron = document.getElementById('platform-menu-chevron');
+            const logo = document.getElementById('main-app-logo');
+            
+            if (window.isPlatformMenuOpen) {
+                if (dropdown) {
+                    dropdown.classList.remove('-translate-y-full', 'opacity-0', 'pointer-events-none');
+                    dropdown.classList.add('translate-y-0', 'opacity-100', 'pointer-events-auto');
+                }
+                if (chevron) chevron.classList.add('rotate-180');
+                if (logo) logo.classList.add('logo-glow-active');
+            } else {
+                if (dropdown) {
+                    dropdown.classList.add('-translate-y-full', 'opacity-0', 'pointer-events-none');
+                    dropdown.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto');
+                }
+                if (chevron) chevron.classList.remove('rotate-180');
+                if (filterPlatform === 'all' && logo) logo.classList.remove('logo-glow-active');
+            }
+        }
+
+        function toggleMobileMenu() {
+            isMobileMenuOpen = !isMobileMenuOpen;
+            dom.sidebarMenu.classList.toggle('hidden', !isMobileMenuOpen);
+        }
+
+        window.setPlatformFilter = function(platformId) {
+            filterPlatform = platformId;
+            isMobileMenuOpen = false;
+            dom.sidebarMenu.classList.add('hidden');
+            
+            if(platformId === 'all') dom.pageTitle.textContent = 'A Sua Coleção';
+            else if (platformId === 'wishlist') dom.pageTitle.textContent = 'Lista de Desejos';
+            else dom.pageTitle.textContent = PLATFORMS.find(p => p.id === platformId).name;
+            
+            updateSidebar();
+            renderGames();
+        }
+
+        window.toggleWishlistUI = function(isWish) {
+            if (isWish) {
+                dom.borrowedCard.classList.add('hidden');
+                dom.fIsBorrowed.checked = false;
+                toggleBorrowedUI(false);
+            } else {
+                dom.borrowedCard.classList.remove('hidden');
+            }
+        }
+
+        function toggleBorrowedUI(isBorrowed) {
+            if (isBorrowed) {
+                dom.borrowedCard.classList.replace('bg-slate-900', 'bg-red-900/20');
+                dom.borrowedCard.classList.add('border-red-800/50', 'shadow-[0_0_15px_rgba(239,68,68,0.1)]');
+                dom.borrowedLabel.classList.replace('text-slate-300', 'text-red-400');
+                dom.borrowedToContainer.classList.remove('hidden');
+            } else {
+                dom.borrowedCard.classList.replace('bg-red-900/20', 'bg-slate-900');
+                dom.borrowedCard.classList.remove('border-red-800/50', 'shadow-[0_0_15px_rgba(239,68,68,0.1)]');
+                dom.borrowedLabel.classList.replace('text-red-400', 'text-slate-300');
+                dom.borrowedToContainer.classList.add('hidden');
+                dom.fBorrowedTo.value = '';
+            }
+        }
+        
+        window.togglePlatformForm = function(id) {
+            if (formData_selectedPlatforms.includes(id)) {
+                formData_selectedPlatforms = formData_selectedPlatforms.filter(p => p !== id);
+                if (formData_activePlatformCover === id) formData_activePlatformCover = formData_selectedPlatforms.length > 0 ? formData_selectedPlatforms[0] : 'default';
+            } else {
+                formData_selectedPlatforms.push(id);
+                if (formData_selectedPlatforms.length === 1 || formData_activePlatformCover === 'default') formData_activePlatformCover = id;
+            }
+            renderPlatformToggles();
+            renderModalCoverUI();
+        }
+
+        function renderPlatformToggles() {
+            let html = '';
+            PLATFORMS.forEach(p => {
+                const isSelected = formData_selectedPlatforms.includes(p.id);
+                const baseClasses = "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border select-none focus:outline-none focus:ring-2 focus:ring-blue-500/50";
+                const selectedClasses = "bg-blue-600 border-blue-500 text-white shadow-[0_0_10px_rgba(59,130,246,0.4)] transform scale-105";
+                const unselectedClasses = "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200";
+                html += `<button type="button" onclick="window.togglePlatformForm('${p.id}')" class="${baseClasses} ${isSelected ? selectedClasses : unselectedClasses}"><i data-lucide="${p.icon}" class="w-3.5 h-3.5"></i> ${p.name}</button>`;
+            });
+            dom.fPlatformsContainer.innerHTML = html;
+            lucide.createIcons({ root: dom.fPlatformsContainer });
+        }
+
+        window.toggleLanguageForm = function(id) {
+            if (formData_selectedLanguages.includes(id)) formData_selectedLanguages = formData_selectedLanguages.filter(l => l !== id);
+            else formData_selectedLanguages.push(id);
+            renderLanguageToggles();
+        }
+
+        function renderLanguageToggles() {
+            let html = '';
+            LANGUAGES.forEach(l => {
+                const isSelected = formData_selectedLanguages.includes(l.id);
+                const baseClasses = "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer border select-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 uppercase tracking-wider";
+                const selectedClasses = "bg-indigo-600 border-indigo-500 text-white shadow-[0_0_10px_rgba(79,70,229,0.4)] transform scale-105";
+                const unselectedClasses = "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200";
+                html += `<button type="button" onclick="window.toggleLanguageForm('${l.id}')" class="${baseClasses} ${isSelected ? selectedClasses : unselectedClasses}">${l.name}</button>`;
+            });
+            dom.fLanguagesContainer.innerHTML = html;
+        }
+
+        window.toggleMediaForm = function(id) {
+            if (formData_selectedMedias.includes(id)) formData_selectedMedias = formData_selectedMedias.filter(m => m !== id);
+            else formData_selectedMedias.push(id);
+            renderMediaToggles();
+        }
+
+        function renderMediaToggles() {
+            let html = '';
+            MEDIAS.forEach(m => {
+                const isSelected = formData_selectedMedias.includes(m.id);
+                const baseClasses = "px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 border select-none focus:outline-none focus:ring-2 focus:ring-blue-500/50 uppercase tracking-wider";
+                const selectedClasses = "bg-emerald-600 border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)] transform scale-105";
+                const unselectedClasses = "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200";
+                let iconHtml = `<i data-lucide="${m.icon}" class="w-4 h-4"></i>`;
+                if (m.id === 'digital') iconHtml = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12" y2="18.01"></line></svg>`;
+                html += `<button type="button" onclick="window.toggleMediaForm('${m.id}')" class="${baseClasses} ${isSelected ? selectedClasses : unselectedClasses}">${iconHtml} ${m.name}</button>`;
+            });
+            dom.fMediasContainer.innerHTML = html;
+            lucide.createIcons({ root: dom.fMediasContainer });
+        }
+
+        window.setActiveCoverTab = function(pId) {
+            formData_activePlatformCover = pId;
+            renderModalCoverUI();
+        };
+
+        function renderModalCoverUI() {
+            const tabsContainer = document.getElementById('modal-cover-tabs');
+            if (formData_selectedPlatforms.length > 1) {
+                let html = '';
+                const orderedSelected = PLATFORMS.filter(p => formData_selectedPlatforms.includes(p.id));
+                orderedSelected.forEach(p => {
+                    const isActive = (p.id === formData_activePlatformCover);
+                    const classes = isActive ? "bg-blue-600 text-white shadow-md border-blue-500" : "bg-slate-800 text-slate-400 hover:bg-slate-700 border-slate-700";
+                    html += `<button type="button" onclick="window.setActiveCoverTab('${p.id}')" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg border transition-all ${classes}">${p.name}</button>`;
+                });
+                tabsContainer.innerHTML = html;
+                tabsContainer.classList.remove('hidden');
+            } else {
+                tabsContainer.innerHTML = '';
+                tabsContainer.classList.add('hidden');
+            }
+
+            const currentUrl = formData_covers[formData_activePlatformCover] || '';
+            dom.fCoverUrl.value = currentUrl;
+            renderCoverPreview(); 
+        }
+
+        function renderCoverPreview() {
+            const url = dom.fCoverUrl.value;
+            let html = '';
+            
+            if (url) {
+                html = `<img src="${url}" alt="Capa" class="w-full h-full object-contain object-center drop-shadow-2xl backdrop-blur-3xl bg-slate-950/80 p-2" />`;
+            } else {
+                html = `
+                    <div class="text-center text-slate-500 flex flex-col items-center gap-3">
+                        <div class="p-4 bg-slate-800/80 rounded-full group-hover:scale-110 transition-transform">
+                            <i data-lucide="image" class="w-8 h-8"></i>
+                        </div>
+                        <span class="text-sm font-medium">Insira a URL abaixo</span>
+                    </div>
+                `;
+            }
+
+            if (formData_coverOptions.length > 1) {
+                html += `
+                    <div class="absolute inset-x-0 bottom-0 bg-slate-950/90 backdrop-blur-sm p-3 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button type="button" onclick="window.cycleCover(-1)" class="p-1.5 text-white hover:text-blue-400 hover:bg-white/10 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/50"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                        <span class="text-white text-xs font-bold px-3 py-1 bg-white/10 border border-white/20 rounded-full shadow-md">${formData_currentCoverIndex + 1} / ${formData_coverOptions.length}</span>
+                        <button type="button" onclick="window.cycleCover(1)" class="p-1.5 text-white hover:text-blue-400 hover:bg-white/10 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/50"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                    </div>
+                `;
+            }
+
+            dom.coverPreviewContainer.innerHTML = html;
+            lucide.createIcons({ nameAttr: 'data-lucide', root: dom.coverPreviewContainer });
+        }
+
+        window.cycleCover = function(direction) {
+            if (!formData_coverOptions || formData_coverOptions.length === 0) return;
+            formData_currentCoverIndex += direction;
+            if (formData_currentCoverIndex >= formData_coverOptions.length) formData_currentCoverIndex = 0;
+            if (formData_currentCoverIndex < 0) formData_currentCoverIndex = formData_coverOptions.length - 1;
+            
+            const newUrl = formData_coverOptions[formData_currentCoverIndex];
+            dom.fCoverUrl.value = newUrl;
+            formData_covers[formData_activePlatformCover] = newUrl;
+            renderCoverPreview();
+        }
+
+        window.cycleCardCover = function(gameId, direction) {
+            const img = document.getElementById(`card-cover-img-${gameId}`);
+            if (!img) return;
+            const covers = JSON.parse(decodeURIComponent(img.getAttribute('data-covers')));
+            let idx = parseInt(img.getAttribute('data-index'), 10);
+            idx += direction;
+            if (idx >= covers.length) idx = 0;
+            if (idx < 0) idx = covers.length - 1;
+            img.setAttribute('data-index', idx);
+            img.src = covers[idx];
+        }
+
+        function updateSidebar() {
+            const colecaoGeralCount = games.filter(g => !g.isWishlist).length;
+            const wishlistCount = games.filter(g => g.isWishlist).length;
+
+            dom.countAll.textContent = colecaoGeralCount;
+            if (dom.countWishlist) dom.countWishlist.textContent = wishlistCount;
+
+            const iconAll = dom.filterBtnAll.querySelector('svg, i');
+            const iconWish = dom.filterBtnWishlist.querySelector('svg, i');
+            
+            if (filterPlatform === 'all') {
+                dom.filterBtnAll.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium bg-slate-800 text-blue-400 shadow-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50';
+                if (iconAll) { iconAll.classList.remove('text-slate-500'); iconAll.classList.add('text-blue-400'); }
+            } else {
+                dom.filterBtnAll.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent focus:outline-none focus:ring-2 focus:ring-slate-500/50';
+                if (iconAll) { iconAll.classList.remove('text-blue-400'); iconAll.classList.add('text-slate-500'); }
+            }
+
+            if (filterPlatform === 'wishlist') {
+                dom.filterBtnWishlist.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium bg-yellow-500/20 text-yellow-400 shadow-sm border border-yellow-500/30 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 mt-1';
+                if (iconWish) { iconWish.classList.remove('text-slate-500'); iconWish.classList.add('text-yellow-400'); }
+            } else {
+                dom.filterBtnWishlist.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent focus:outline-none focus:ring-2 focus:ring-slate-500/50 mt-1';
+                if (iconWish) { iconWish.classList.remove('text-yellow-400'); iconWish.classList.add('text-slate-500'); }
+            }
+
+            let html = '';
+            PLATFORMS.forEach(p => {
+                const count = games.filter(g => !g.isWishlist && (g.platforms || (g.platform ? [g.platform] : [])).includes(p.id)).length;
+                
+                const isActive = filterPlatform === p.id;
+                const btnClass = isActive 
+                    ? 'bg-slate-800 text-blue-400 shadow-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50' 
+                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent focus:outline-none focus:ring-2 focus:ring-slate-500/50';
+                const iconClass = isActive ? 'text-blue-400' : 'text-slate-500';
+                const countHtml = count > 0 ? `<span class="ml-auto bg-slate-900 px-2 py-0.5 rounded-full text-slate-400 text-xs">${count}</span>` : '';
+
+                html += `
+                    <button onclick="window.setPlatformFilter('${p.id}')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium ${btnClass}">
+                        <i data-lucide="${p.icon}" class="w-[18px] h-[18px] ${iconClass}"></i>
+                        ${p.name}
+                        ${countHtml}
+                    </button>
+                `;
+            });
+            dom.platformsContainer.innerHTML = html;
+            lucide.createIcons({ nameAttr: 'data-lucide', root: dom.platformsContainer });
+        }
+
+        function renderPlayingNow() {
+            const playingGames = games.filter(g => g.isPlaying && !g.isWishlist);
+            
+            if (playingGames.length === 0) {
+                dom.playingNowSection.classList.add('hidden');
+                dom.playingNowSection.classList.remove('flex');
+            } else {
+                dom.playingNowSection.classList.remove('hidden');
+                dom.playingNowSection.classList.add('flex');
+                dom.playingNowGrid.innerHTML = playingGames.map(game => {
+                    let validCovers = (game.platforms || []).map(pId => game.covers && game.covers[pId]).filter(Boolean);
+                    if (!validCovers.length && game.coverUrl) validCovers.push(game.coverUrl);
+                    const cover = validCovers[0] || '';
+                    return `
+                    <div onclick="window.openEditModal('${game.id}')" class="min-w-[150px] w-[150px] bg-slate-900 border border-blue-500/50 rounded-2xl flex flex-col overflow-hidden active:scale-95 transition-transform hover:-translate-y-1 cursor-pointer shrink-0 shadow-[0_4px_15px_rgba(59,130,246,0.15)] relative">
+                        <div class="relative aspect-[3/4] bg-slate-950 flex items-center justify-center">
+                            ${cover ? `<img src="${cover}" class="w-full h-full object-contain p-0.5" loading="lazy" />` : `<i data-lucide="image" class="w-8 h-8 text-slate-700"></i>`}
+                            <div class="absolute -top-2 -right-2 bg-blue-600 rounded-full p-2 shadow-lg border-2 border-slate-900 z-10">
+                                <i data-lucide="play" class="w-4 h-4 text-white fill-white"></i>
+                            </div>
+                        </div>
+                        <div class="p-2.5 flex-1 flex items-center justify-center bg-blue-600/10 border-t border-blue-500/30">
+                            <h3 class="font-bold text-blue-100 text-[10px] leading-tight line-clamp-2 text-center uppercase">${game.title}</h3>
+                        </div>
+                    </div>`;
+                }).join('');
+                lucide.createIcons({ root: dom.playingNowGrid });
+            }
+        }
+
+        function renderGames() {
+            const filteredGames = games.filter(g => {
+                const gamePlats = g.platforms || (g.platform ? [g.platform] : []);
+                let matchPlatform = false;
+                if (filterPlatform === 'wishlist') matchPlatform = g.isWishlist;
+                else if (filterPlatform === 'all') matchPlatform = !g.isWishlist; 
+                else matchPlatform = !g.isWishlist && gamePlats.includes(filterPlatform);
+                const matchSearch = g.title.toLowerCase().includes(searchQuery);
+                return matchPlatform && matchSearch;
+            }).sort((a, b) => {
+                return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+            dom.displayCount.textContent = filteredGames.length;
+
+            if (filteredGames.length === 0) {
+                dom.gamesGrid.innerHTML = '';
+                dom.emptyState.classList.remove('hidden');
+                dom.emptyState.classList.add('flex');
+            } else {
+                dom.emptyState.classList.add('hidden');
+                dom.emptyState.classList.remove('flex');
+                
+                let html = '';
+                filteredGames.forEach(game => {
+                    const gamePlats = game.platforms || (game.platform ? [game.platform] : []);
+                    const gameMedias = game.medias || [];
+                    
+                    let borderStyle = 'outline-transparent border-slate-800 hover:border-blue-500/50 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]';
+                    if (game.isBorrowed) borderStyle = 'border-red-500/50 outline outline-2 outline-red-500/30';
+                    if (game.isWishlist) borderStyle = 'border-yellow-500/50 outline outline-2 outline-yellow-500/30';
+                        
+                    let validCovers = [];
+                    let specificPlatformCover = null;
+
+                    if (gamePlats.length > 0) {
+                        PLATFORMS.forEach(p => {
+                            if (gamePlats.includes(p.id) && game.covers && game.covers[p.id]) {
+                                if (filterPlatform === p.id) {
+                                    specificPlatformCover = game.covers[p.id];
+                                } else {
+                                    validCovers.push(game.covers[p.id]);
+                                }
+                            }
+                        });
+                    }
+
+                    if (specificPlatformCover) validCovers.unshift(specificPlatformCover);
+                    if (validCovers.length === 0 && game.coverUrl) validCovers.push(game.coverUrl);
+                    validCovers = [...new Set(validCovers)]; 
+                    
+                    const safeCoversStr = encodeURIComponent(JSON.stringify(validCovers));
+
+                    const arrowsHtml = validCovers.length > 1 ? `
+                        <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
+                            <button type="button" onclick="event.stopPropagation(); window.cycleCardCover('${game.id}', -1)" class="pointer-events-auto p-1.5 bg-slate-900/90 text-white hover:bg-blue-500 rounded-full backdrop-blur-md transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)] focus:outline-none"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                            <button type="button" onclick="event.stopPropagation(); window.cycleCardCover('${game.id}', 1)" class="pointer-events-auto p-1.5 bg-slate-900/90 text-white hover:bg-blue-500 rounded-full backdrop-blur-md transition-colors shadow-[0_0_10px_rgba(0,0,0,0.5)] focus:outline-none"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                        </div>
+                    ` : '';
+
+                    const coverInner = validCovers.length > 0
+                        ? `<img id="card-cover-img-${game.id}" src="${validCovers[0]}" data-covers="${safeCoversStr}" data-index="0" alt="${game.title}" class="w-full h-full object-contain object-center backdrop-blur-2xl bg-slate-950 p-1 transform group-hover:scale-[1.03] transition-transform duration-700 ease-out" loading="lazy" />`
+                        : `<div class="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-800/50"><i data-lucide="image" class="w-10 h-10 opacity-40 mb-2"></i><span class="text-xs font-medium uppercase tracking-wider">Sem Capa</span></div>`;
+
+                    let statusBadge = '';
+                    if (game.isBorrowed) {
+                        statusBadge = `
+                        <div class="absolute top-3 right-3 z-30">
+                            <div class="flex items-center gap-2 bg-red-600 border border-red-500/50 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-bold text-white shadow-lg">
+                                <span class="relative flex h-2 w-2">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                                </span>
+                                <span class="uppercase tracking-widest max-w-[90px] truncate">${game.borrowedTo}</span>
+                            </div>
+                        </div>`;
+                    } else if (game.isWishlist) {
+                        statusBadge = `<div class="absolute top-3 right-3 z-30 bg-yellow-500 border border-yellow-400 backdrop-blur-md p-1.5 rounded-full shadow-lg"><i data-lucide="star" class="w-4 h-4 text-slate-900 fill-slate-900"></i></div>`;
+                    }
+
+                    let badgesHtml = '';
+                    let simpleIconsHtml = '';
+                    gamePlats.forEach(pId => {
+                        const pObj = PLATFORMS.find(p => p.id === pId);
+                        if (pObj) {
+                            badgesHtml += `
+                                <div class="bg-slate-950/90 backdrop-blur-md text-slate-200 text-[10px] font-bold px-2 py-1.5 rounded-lg border border-slate-700 uppercase flex items-center gap-1 shadow-sm">
+                                    <i data-lucide="${pObj.icon}" class="w-3 h-3 text-blue-400"></i>
+                                    <span class="hidden sm:inline">${pObj.name}</span>
+                                    <span class="sm:hidden">${pObj.id}</span>
+                                </div>`;
+                            simpleIconsHtml += `<i data-lucide="${pObj.icon}" class="w-4 h-4" title="${pObj.name}"></i>`;
+                        }
+                    });
+
+                    let mediasHtml = '';
+                    if (gameMedias.length > 0 && !game.isWishlist) {
+                        mediasHtml = `<div class="absolute bottom-3 right-3 flex flex-col gap-1.5 z-20">`;
+                        gameMedias.forEach(mId => {
+                            const mObj = MEDIAS.find(m => m.id === mId);
+                            if (mObj) {
+                                let specificIcon = `<i data-lucide="${mObj.icon}" class="w-4 h-4 text-emerald-400"></i>`;
+                                if (mId === 'digital') {
+                                    specificIcon = `<svg class="w-4 h-4 text-emerald-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12" y2="18.01"></line></svg>`;
+                                }
+                                mediasHtml += `
+                                <div class="bg-slate-900/90 backdrop-blur-md text-white p-1.5 rounded-full border border-slate-700 shadow-[0_0_10px_rgba(0,0,0,0.5)] flex items-center justify-center transform group-hover:scale-110 transition-transform" title="${mObj.name}">
+                                    ${specificIcon}
+                                </div>`;
+                            }
+                        });
+                        mediasHtml += `</div>`;
+                    }
+
+                    let langsText = 'N/A';
+                    if (Array.isArray(game.languages) && game.languages.length > 0) {
+                        langsText = game.languages.map(lId => {
+                            const langObj = LANGUAGES.find(l => l.id === lId);
+                            return langObj ? langObj.short : lId;
+                        }).join(', ');
+                    } else if (typeof game.languages === 'string' && game.languages) {
+                        langsText = game.languages; 
+                    }
+
+                    const actionOnClick = game.isWishlist ? `window.openStoreModal('${game.id}')` : `window.openEditModal('${game.id}')`;
+                    const storeHoverBadge = game.isWishlist ? `<div class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none"><div class="bg-emerald-600 text-white px-4 py-2 rounded-full font-bold text-xs shadow-[0_4px_20px_rgba(16,185,129,0.5)] flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-transform"><i data-lucide="shopping-cart" class="w-4 h-4"></i> Ver Lojas</div></div>` : '';
+
+                    html += `
+                        <div tabindex="0" onclick="${actionOnClick}" class="game-card group relative bg-slate-900 border rounded-2xl transition-all duration-300 flex flex-col overflow-hidden cursor-pointer hover:-translate-y-1.5 ${borderStyle}">
+                            <div class="relative aspect-[3/4] bg-slate-950 w-full overflow-hidden flex items-center justify-center">
+                                ${coverInner}
+                                ${arrowsHtml}
+                                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                                ${statusBadge}
+                                ${storeHoverBadge}
+                                <div class="absolute bottom-3 left-3 right-12 flex flex-wrap gap-1.5 transform translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20 pointer-events-none">
+                                    ${badgesHtml}
+                                </div>
+                                ${mediasHtml}
+                            </div>
+                            <div class="p-4 flex flex-col flex-1 bg-slate-900 border-t border-slate-800 relative z-10">
+                                <h3 class="font-bold text-slate-100 leading-tight mb-2 line-clamp-2 uppercase group-hover:text-blue-400 transition-colors" title="${game.title}">${game.title}</h3>
+                                <div class="mt-auto flex items-center justify-between">
+                                    <p class="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium truncate pr-2" title="${langsText}">
+                                        <i data-lucide="languages" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                                        <span class="truncate max-w-[120px]">${langsText}</span>
+                                    </p>
+                                    <div class="text-slate-600 flex gap-1 group-hover:opacity-0 transition-opacity shrink-0">
+                                        ${simpleIconsHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                dom.gamesGrid.innerHTML = html;
+                lucide.createIcons({ nameAttr: 'data-lucide', root: dom.gamesGrid });
+            }
+            renderPlayingNow();
+        }
+
+        // --- CRUD / MODAL FUNCTIONS ---
+        window.openNewGameModal = function() {
+            editingGameId = null;
+            
+            dom.fTitle.value = '';
+            formData_selectedPlatforms = ['ps4']; 
+            formData_selectedLanguages = ['pt-br-audio', 'pt-br-leg']; 
+            formData_selectedMedias = ['fisica'];
+            formData_covers = {};
+            formData_activePlatformCover = 'ps4';
+            
+            dom.fIsPlaying.checked = false;
+            dom.fIsWishlist.checked = filterPlatform === 'wishlist';
+            dom.fIsBorrowed.checked = false;
+            toggleWishlistUI(dom.fIsWishlist.checked);
+            
+            dom.fCoverUrl.value = '';
+            dom.fSynopsis.value = '';
+            dom.fBorrowedTo.value = '';
+            
+            formData_coverOptions = [];
+            formData_currentCoverIndex = 0;
+            dom.apiSearchInput.value = '';
+            dom.apiResultsContainer.innerHTML = '';
+            dom.apiResultsContainer.classList.add('hidden');
+            dom.btnTranslate.disabled = true;
+            
+            renderPlatformToggles();
+            renderLanguageToggles();
+            renderMediaToggles();
+            renderModalCoverUI();
+
+            dom.modalTitleText.textContent = 'Adicionar Novo Jogo';
+            dom.modalTitleIconWrapper.className = 'p-2 rounded-xl shadow-sm bg-blue-500/20 text-blue-400 border border-blue-500/30';
+            dom.modalTitleIcon.setAttribute('data-lucide', 'plus');
+            dom.btnDelete.classList.add('hidden');
+            dom.btnDeletePlaceholder.classList.remove('hidden');
+
+            dom.modal.classList.remove('hidden');
+            dom.modal.classList.add('flex');
+            
+            setTimeout(() => dom.fTitle.focus(), 100);
+            lucide.createIcons();
+        }
+
+        window.openEditModal = function(id) {
+            const game = games.find(g => g.id === id);
+            if(!game) return;
+
+            editingGameId = id;
+
+            dom.fTitle.value = game.title || '';
+            formData_selectedPlatforms = game.platforms && game.platforms.length > 0 ? [...game.platforms] : (game.platform ? [game.platform] : []);
+                
+            formData_covers = game.covers ? { ...game.covers } : {};
+            if (game.coverUrl && Object.keys(formData_covers).length === 0) {
+                const firstP = formData_selectedPlatforms.length > 0 ? formData_selectedPlatforms[0] : 'default';
+                formData_covers[firstP] = game.coverUrl;
+            }
+            formData_activePlatformCover = formData_selectedPlatforms.length > 0 ? formData_selectedPlatforms[0] : 'default';
+            
+            if (Array.isArray(game.languages)) {
+                formData_selectedLanguages = [...game.languages];
+            } else if (typeof game.languages === 'string') {
+                formData_selectedLanguages = [];
+                const str = game.languages.toLowerCase();
+                if (str.includes('português') || str.includes('pt-br')) formData_selectedLanguages.push('pt-br-audio', 'pt-br-leg');
+                if (str.includes('inglês') || str.includes('en')) formData_selectedLanguages.push('en-audio', 'en-leg');
+            } else {
+                formData_selectedLanguages = [];
+            }
+
+            formData_selectedMedias = game.medias ? [...game.medias] : [];
+            
+            dom.fSynopsis.value = game.synopsis || '';
+            dom.fIsPlaying.checked = game.isPlaying || false;
+            dom.fIsWishlist.checked = game.isWishlist || false;
+            dom.fIsBorrowed.checked = game.isBorrowed || false;
+            dom.fBorrowedTo.value = game.borrowedTo || '';
+            
+            toggleWishlistUI(game.isWishlist);
+
+            formData_coverOptions = [];
+            formData_currentCoverIndex = 0;
+            dom.apiSearchInput.value = '';
+            dom.apiResultsContainer.innerHTML = '';
+            dom.apiResultsContainer.classList.add('hidden');
+            dom.btnTranslate.disabled = !game.synopsis;
+
+            renderPlatformToggles();
+            renderLanguageToggles();
+            renderMediaToggles();
+            renderModalCoverUI();
+
+            dom.modalTitleText.textContent = 'Editar Jogo';
+            dom.modalTitleIconWrapper.className = 'p-2 rounded-xl shadow-sm bg-amber-500/20 text-amber-400 border border-amber-500/30';
+            dom.modalTitleIcon.setAttribute('data-lucide', 'edit-2');
+            dom.btnDelete.classList.remove('hidden');
+            dom.btnDeletePlaceholder.classList.add('hidden');
+
+            dom.modal.classList.remove('hidden');
+            dom.modal.classList.add('flex');
+            
+            setTimeout(() => dom.fTitle.focus(), 100);
+            lucide.createIcons();
+        }
+
+        window.closeModal = function() {
+            dom.modal.classList.add('hidden');
+            dom.modal.classList.remove('flex');
+        }
+
+        window.saveGame = function() {
+            const title = dom.fTitle.value.trim();
+            if (!title) return alert("O título do jogo é obrigatório!");
+            if (formData_selectedPlatforms.length === 0) return alert("Selecione pelo menos uma plataforma!");
+
+            const isWishlist = dom.fIsWishlist.checked;
+            const isBorrowed = isWishlist ? false : dom.fIsBorrowed.checked; 
+
+            const gameData = {
+                title: title.toUpperCase(), 
+                platforms: formData_selectedPlatforms,
+                covers: formData_covers,
+                coverUrl: formData_covers[formData_selectedPlatforms[0]] || dom.fCoverUrl.value || '', 
+                languages: formData_selectedLanguages,
+                medias: formData_selectedMedias, 
+                synopsis: dom.fSynopsis.value,
+                isPlaying: dom.fIsPlaying.checked,
+                isWishlist: isWishlist,
+                isBorrowed: isBorrowed,
+                borrowedTo: isBorrowed ? dom.fBorrowedTo.value : ''
+            };
+
+            if (!Array.isArray(games)) games = Object.values(games || {});
+            let novaListaDeJogos = [...games];
+
+            if (editingGameId) {
+                gameData.id = editingGameId;
+                const index = novaListaDeJogos.findIndex(g => g && g.id === editingGameId);
+                if(index !== -1) novaListaDeJogos[index] = gameData;
+            } else {
+                gameData.id = Date.now().toString();
+                novaListaDeJogos.push(gameData);
+            }
+
+            games = novaListaDeJogos;
+            updateSidebar();
+            renderGames();
+            window.closeModal();
+
+            saveToCloud(games); 
+        }
+
+        window.deleteGame = function() {
+            if(!editingGameId) return;
+            if (confirm("Tem certeza que deseja remover este jogo da biblioteca?")) {
+                if (!Array.isArray(games)) games = Object.values(games || {});
+                games = games.filter(g => g && g.id !== editingGameId);
+                updateSidebar();
+                renderGames();
+                window.closeModal();
+                saveToCloud(games); 
+            }
+        }
+
+        let currentStoreGameId = null;
+
+        window.openStoreModal = function(gameId) {
+            const game = games.find(g => g.id === gameId);
+            if (!game) return;
+            currentStoreGameId = gameId;
+
+            document.getElementById('store-modal-title').textContent = game.title;
+            document.getElementById('store-modal-synopsis').textContent = game.synopsis || 'Sem sinopse. Explore as lojas para saber mais.';
+            
+            let validCovers = [];
+            const gamePlats = game.platforms || (game.platform ? [game.platform] : []);
+            if (gamePlats.length > 0) {
+                PLATFORMS.forEach(p => {
+                    if (gamePlats.includes(p.id) && game.covers && game.covers[p.id]) validCovers.push(game.covers[p.id]);
+                });
+            }
+            if (validCovers.length === 0 && game.coverUrl) validCovers.push(game.coverUrl);
+            document.getElementById('store-modal-cover').src = validCovers[0] || 'https://via.placeholder.com/300x400/0f172a/475569?text=Sem+Capa';
+
+            const encTitle = encodeURIComponent(game.title);
+            
+            document.getElementById('store-physical-links').innerHTML = `
+                <a href="https://www.amazon.com.br/s?k=${encTitle}+jogo" target="_blank" class="bg-[#131921] hover:bg-[#232f3e] border border-slate-700 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-xs sm:text-sm active:scale-95"><i data-lucide="shopping-bag" class="w-4 h-4 text-[#febd69]"></i> Amazon BR</a>
+                <a href="https://lista.mercadolivre.com.br/${encTitle}-jogo" target="_blank" class="bg-[#ffe600] hover:bg-[#ffed4a] border border-[#d4c100] text-[#2d3277] font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-xs sm:text-sm active:scale-95"><i data-lucide="package" class="w-4 h-4"></i> Mercado Livre</a>
+            `;
+
+            document.getElementById('store-digital-links').innerHTML = `
+                <a href="https://store.playstation.com/pt-br/search/${encTitle}" target="_blank" class="bg-[#003791] hover:bg-[#0043b3] border border-blue-800 text-white font-bold py-3 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all text-xs active:scale-95"><i data-lucide="gamepad" class="w-3.5 h-3.5"></i> PS Store</a>
+                <a href="https://www.xbox.com/pt-BR/Search?q=${encTitle}" target="_blank" class="bg-[#107C10] hover:bg-[#149914] border border-green-800 text-white font-bold py-3 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all text-xs active:scale-95"><i data-lucide="box" class="w-3.5 h-3.5"></i> Xbox</a>
+                <a href="https://store.steampowered.com/search/?term=${encTitle}" target="_blank" class="bg-[#171a21] hover:bg-[#2a475e] border border-slate-800 text-white font-bold py-3 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all text-xs active:scale-95"><i data-lucide="monitor" class="w-3.5 h-3.5"></i> Steam</a>
+                <a href="https://www.nuuvem.com/br-pt/catalog/search/${encTitle}" target="_blank" class="bg-[#11B5E4] hover:bg-[#26c4f0] border border-cyan-500 text-white font-bold py-3 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all text-xs active:scale-95"><i data-lucide="cloud" class="w-3.5 h-3.5"></i> Nuuvem</a>
+            `;
+
+            document.getElementById('store-modal').classList.remove('hidden');
+            document.getElementById('store-modal').classList.add('flex');
+            lucide.createIcons();
+        };
+
+        window.closeStoreModal = function() {
+            document.getElementById('store-modal').classList.add('hidden');
+            document.getElementById('store-modal').classList.remove('flex');
+        };
+
+        window.moveFromWishlistToCollection = function() {
+            if (!currentStoreGameId) return;
+            const gameIndex = games.findIndex(g => g.id === currentStoreGameId);
+            if (gameIndex > -1) {
+                games[gameIndex].isWishlist = false;
+                saveToCloud(games);
+                updateSidebar();
+                renderGames();
+                closeStoreModal();
+                alert("Fantástico! O jogo foi movido para a sua Coleção.");
+            }
+        };
+
+        window.editWishlistGame = function() {
+            closeStoreModal();
+            openEditModal(currentStoreGameId);
+        };
+
+        // --- API FUNCTIONS ---
+        window.handleApiSearch = async function() {
+            const query = dom.apiSearchInput.value.trim();
+            if (!query) return;
+
+            dom.btnApiSearch.disabled = true;
+            dom.apiSearchText.classList.add('hidden');
+            dom.apiSearchLoader.classList.remove('hidden');
+
+            try {
+                const source = dom.apiSourceSelect.value;
+                if (source === 'igdb') {
+                    const CLIENT_ID = 'ui07l07p7gy1wsfcjhueuxjiixiwnq';
+                    const CLIENT_SECRET = 'tih38jsxi47bxo2056jg6ho65xge7y';
+                    const tokenUrl = `https://id.twitch.tv/oauth2/token?client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&grant_type=client_credentials`;
+                    const proxyTokenUrl = `https://corsproxy.io/?${encodeURIComponent(tokenUrl)}`;
+                    
+                    const tokenRes = await fetch(proxyTokenUrl, { method: 'POST' });
+                    if (!tokenRes.ok) throw new Error("Erro token Twitch");
+                    
+                    const tokenData = await tokenRes.json();
+                    const accessToken = tokenData.access_token;
+                    
+                    const targetUrl = 'https://api.igdb.com/v4/games';
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+                    
+                    const safeQuery = query.replace(/"/g, '');
+                    const queryBody = `search "${safeQuery}"; fields name, cover.image_id, screenshots.image_id, summary; limit 15;`;
+
+                    const igdbRes = await fetch(proxyUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Client-ID': CLIENT_ID,
+                            'Authorization': `Bearer ${accessToken}`,
+                        },
+                        body: queryBody
+                    });
+
+                    if (!igdbRes.ok) throw new Error("Erro IGDB");
+                    const data = await igdbRes.json();
+                    
+                    apiResultsList = data.map(game => {
+                        const covers = [];
+                        if (game.cover && game.cover.image_id) covers.push(`https://images.igdb.com/igdb/image/upload/t_1080p/${game.cover.image_id}.jpg`);
+                        if (game.screenshots && game.screenshots.length > 0) {
+                            game.screenshots.forEach(sc => covers.push(`https://images.igdb.com/igdb/image/upload/t_1080p/${sc.image_id}.jpg`));
+                        }
+                        return { title: game.name, covers: covers, synopsis: game.summary || "Sem sinopse disponível." };
+                    });
+                } else if (source === 'thegamesdb') {
+                    const THEGAMESDB_API_KEY = "9ff2c491e42cd10e2aad3c1d81e357a3081d5b059cc3b7915ba6c470a7b70c9f";
+                    const targetUrl = `https://api.thegamesdb.net/v1/Games/ByGameName?name=${encodeURIComponent(query)}&apikey=${THEGAMESDB_API_KEY}&fields=overview`;
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+                    
+                    const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error("Erro TheGamesDB");
+                    const data = await res.json();
+                    
+                    if (!data.data || !data.data.games || data.data.games.length === 0) {
+                        apiResultsList = [];
+                    } else {
+                        const gamesData = data.data.games.slice(0, 15);
+                        const gameIds = gamesData.map(g => g.id).join(',');
+                        const imgUrl = `https://api.thegamesdb.net/v1/Games/Images?games_id=${gameIds}&filter[type]=boxart&apikey=${THEGAMESDB_API_KEY}`;
+                        const imgProxyUrl = `https://corsproxy.io/?${encodeURIComponent(imgUrl)}`;
+                        let imagesMap = {};
+                        let baseUrl = 'https://cdn.thegamesdb.net/images/original/';
+                        
+                        try {
+                            const imgRes = await fetch(imgProxyUrl);
+                            if(imgRes.ok) {
+                                const imgData = await imgRes.json();
+                                if(imgData.data && imgData.data.base_url && imgData.data.base_url.original) baseUrl = imgData.data.base_url.original;
+                                if(imgData.data && imgData.data.images) {
+                                    Object.keys(imgData.data.images).forEach(gId => {
+                                        const imgs = imgData.data.images[gId];
+                                        const frontCovers = imgs.filter(i => i.side === 'front');
+                                        imagesMap[gId] = (frontCovers.length > 0 ? frontCovers : imgs).map(i => baseUrl + i.filename);
+                                    });
+                                }
+                            }
+                        } catch(e) { console.warn("Erro ao buscar imagens TheGamesDB", e); }
+                        
+                        apiResultsList = gamesData.map(game => {
+                            return { title: game.game_title, covers: imagesMap[game.id] || [], synopsis: game.overview || "Sem sinopse disponível." };
+                        });
+                    }
+                }
+                renderApiResults();
+            } catch (error) {
+                console.error("API Error:", error);
+                alert("Erro ao conectar com a API de busca.");
+            } finally {
+                dom.btnApiSearch.disabled = false;
+                dom.apiSearchText.classList.remove('hidden');
+                dom.apiSearchLoader.classList.add('hidden');
+            }
+        }
+
+        function renderApiResults() {
+            if (apiResultsList.length === 0) {
+                dom.apiResultsContainer.innerHTML = '<div class="p-4 text-sm text-slate-500 text-center">Nenhum resultado encontrado.</div>';
+            } else {
+                let html = '';
+                apiResultsList.forEach((result, idx) => {
+                    const coverThumbnail = result.covers && result.covers.length > 0
+                        ? `<img src="${result.covers[0]}" class="w-10 h-14 object-contain bg-slate-950 p-0.5 rounded-md shadow-sm border border-slate-700" alt="Capa" loading="lazy" />`
+                        : `<div class="w-10 h-14 bg-slate-900 border border-slate-700 rounded-md flex items-center justify-center"><i data-lucide="image" class="w-4 h-4 text-slate-600"></i></div>`;
+
+                    html += `
+                        <div onclick="window.selectApiResult(${idx}, this)" tabindex="0" class="px-4 py-3 hover:bg-slate-700/50 cursor-pointer flex justify-between items-center transition-colors group focus:bg-slate-700/50 focus:outline-none">
+                            <div class="flex items-center gap-3">
+                                ${coverThumbnail}
+                                <span class="font-bold text-slate-200 text-sm uppercase group-hover:text-blue-400 transition-colors">${result.title}</span>
+                            </div>
+                            <span class="import-btn text-[10px] text-blue-400 font-bold bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-full uppercase tracking-wider group-hover:bg-blue-500/20 transition-colors shrink-0">Importar</span>
+                        </div>
+                    `;
+                });
+                dom.apiResultsContainer.innerHTML = html;
+                lucide.createIcons({ nameAttr: 'data-lucide', root: dom.apiResultsContainer });
+            }
+            dom.apiResultsContainer.classList.remove('hidden');
+        }
+
+        window.selectApiResult = function(index, element) {
+            const result = apiResultsList[index];
+            if(!result) return;
+            dom.fTitle.value = result.title.toUpperCase();
+            dom.fSynopsis.value = result.synopsis;
+            formData_coverOptions = result.covers;
+            formData_currentCoverIndex = 0;
+            const selectedCover = result.covers[0] || '';
+            dom.fCoverUrl.value = selectedCover;
+            formData_covers[formData_activePlatformCover] = selectedCover;
+            dom.btnTranslate.disabled = !result.synopsis;
+            renderCoverPreview();
+            
+            if (element) {
+                const btn = element.querySelector('.import-btn');
+                if (btn) {
+                    const originalText = btn.innerText;
+                    btn.innerText = "Importado!";
+                    btn.classList.add('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30');
+                    btn.classList.remove('bg-blue-500/10', 'text-blue-400', 'border-blue-500/20');
+                    setTimeout(() => {
+                        btn.innerText = originalText;
+                        btn.classList.remove('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30');
+                        btn.classList.add('bg-blue-500/10', 'text-blue-400', 'border-blue-500/20');
+                    }, 1500);
+                }
+            }
+        }
+
+        window.handleTranslate = async function() {
+            const textToTranslate = dom.fSynopsis.value.trim();
+            if (!textToTranslate) return;
+
+            dom.btnTranslate.disabled = true;
+            dom.translateNormal.classList.add('hidden');
+            dom.translateSpin.classList.remove('hidden');
+
+            try {
+                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=pt&dt=t&q=${encodeURIComponent(textToTranslate)}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data && data[0]) {
+                    const translatedText = data[0].map(item => item[0]).join('');
+                    dom.fSynopsis.value = translatedText;
+                }
+            } catch (err) {
+                console.error("Erro na tradução", err);
+                alert("Erro ao traduzir. A conexão pode ter falhado.");
+            } finally {
+                dom.btnTranslate.disabled = false;
+                dom.translateNormal.classList.remove('hidden');
+                dom.translateSpin.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

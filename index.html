@@ -636,8 +636,16 @@
                 };
 
                 // Verifica a cada 10s se o desktop subiu/desceu
-                setInterval(checkDesktopApi, 10000);
-                checkDesktopApi(); // Verificação inicial
+                                setInterval(checkDesktopApi, 10000);
+                                // Verificação inicial com retry
+                                async function waitForDesktopApi() {
+                                    for (let i = 0; i < 30; i++) { // até 30s
+                                        if (await checkDesktopApi()) return true;
+                                        await new Promise(r => setTimeout(r, 1000));
+                                    }
+                                    return false;
+                                }
+                                waitForDesktopApi(); // Verificação inicial com retry
 
         // --- SISTEMA DE AUTENTICAÇÃO ---
         function switchAuthView(viewName) {
